@@ -1,7 +1,8 @@
 // Создание и обновление отдельного матча
 
 import { Match, MoveResult } from '../../structures/match.struct';
-import { createBoard, makeMove } from './game.service';
+import { createBoard } from './game.service';
+import { makeMove } from './game.service';
 import { matches } from '../../storage/storage';
 
 /* 
@@ -20,13 +21,12 @@ Match {
 }
 */ 
 
+
 /* основная функция, создает "условный экзепляр" отдельного матча */
 function createMatch(match: Match): Match {
-  return {
-    ...match,
+  return  {    ...match,
     board: createBoard(match.total, match.count),
-    status: 'active',
-  };
+    status: 'active',}
 }
 
 /* вспомогательная функция, сохранить текущее состояние отдельного матча */
@@ -44,11 +44,31 @@ function getMatch(matchId: string): Match | null {
   }
 }
 
-/* вспомогательная функция, применяет ход и обновляет статус матча, если все проверки пройдены */
-// makeMove(
-//   matchId: string,
-//   playerId: string,
-//   boxId: number
-// ): MoveResult {
-//     return 
-// }
+/* вспомогательная функция, на основе функции из game.service 
+применяет ход и обновляет статус матча, если все проверки пройдены */
+export function moveInMatch(
+  matchId: string,
+  playerId: string,
+  boxId: number
+): MoveResult {
+
+  //достаём матч
+  const match = getMatch(matchId);
+
+  if (!match) {
+    return {
+      error: 'match not found',
+      match: null as any,
+    };
+  }
+
+  //прогоняем game.service
+  const result = makeMove(match, playerId, boxId);
+
+  //если все ок - сохраняем мач
+  if (!result.error) {
+    saveMatch(result.match);
+  }
+
+  return result;
+}

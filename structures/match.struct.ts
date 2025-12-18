@@ -19,8 +19,9 @@ export interface Match {
   status: 'waiting' | 'active' | 'finished' //статус игрового матча
 }
 
-/* структура результата хода */
+/* cтруктура результата хода */
 export interface MoveResult {
   match: Match
   error?: string
 }
+
