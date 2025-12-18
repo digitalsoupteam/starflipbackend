@@ -21,7 +21,7 @@ export interface Match {
 
 /* cтруктура результата хода */
 export interface MoveResult {
-  match: Match
+  match?: Match
   error?: string
 }
 
