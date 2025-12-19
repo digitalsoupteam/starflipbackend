@@ -1,7 +1,7 @@
 // Движок игры
 
 import { Match, Box, MoveResult } from "../../structures/match.struct";
-import { randomizePool } from "./random.service";
+import { randomizePool } from "./utils/random";
 
 /* основная функция, делает ход, но проверяет validateMove(), прежде, чем ходить, если все ок то делает applyMove(), обновляя данные матча, также проверяет, если все клетки заполнены isGameOver() возвращая статус finished для матча */
 export function makeMove(

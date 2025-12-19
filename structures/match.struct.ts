@@ -1,3 +1,4 @@
+import { createBoard } from '../src/services/game.service';
 /* Структура матча и сопутствующих сущностей */
 
 /* игрокая клетка и ее свойства */ 
@@ -9,15 +10,23 @@ openedBy?: string // кто открыл клетку
 
 /* структура матча */
 export interface Match {
-  id: string,
-  players: [string, string]  
-  board: Box[],
-  balances: Record<string, number> // балансы игроков 
-  currentTurn: string // чей ход
-  total: number, // суммарный баланс в игре
-  count: number, // количество боксов
-  status: 'waiting' | 'active' | 'finished' //статус игрового матча
+  id: string;                     // id матча
+  createdAt: number;              // timestamp создания
+  creator: string;                // создатель матча (players[0])
+
+  players: string[];              // [player1] | [player1, player2]
+
+  bid: number;                    // ставка одного игрока
+  total: number;                  // общая сумма (bid * 2)
+  count: number;                  // количество клеток (у нас базово 12)
+
+  board: Box[];                   // игровое поле (пустое в waiting)
+  balances: Record<string, number>; // балансы игроков
+
+  currentTurn?: string;           // чей ход (только при active)
+  status: 'waiting' | 'active' | 'finished'; //status 
 }
+
 
 /* cтруктура результата хода */
 export interface MoveResult {

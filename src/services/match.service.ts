@@ -7,36 +7,60 @@ import { matches } from "../../storage/storage";
 
 /* 
 
-принимает из Lobby объект скомпанованного матча:
+принимает из Lobby объект скомпанованного матча и меняет его на status active дополняя его
 
 Match {
-  id: string;                                          //генерирутеся в лобби
-  playeтьrs: [string, string];                          //генерирутеся в лобби
-  board: Box[];                                       //генерируется в match
-  balances: Record<string, number>;                  //генерируется в лобби
-  currentTurn: string;                             //генерируется в match
-  status: 'waiting' | 'active' | 'finished';         //меняется в match
-  total: number;                                    //генерируется в лобби
-  count: number;                                   //генерируется в лобби (сonst 12)
-}
-*/
+  id: string;                     // id матча                                                                       //генерируется в lobby
+  createdAt: number;              // timestamp создания                                                           //генерируется в lobby
+  creator: string;                // создатель матча (players[0])                                              //генерируется в lobby
 
-/* основная функция, создает "условный экзепляр" отдельного матча */
-function createMatch(match: Match): Match {
-  return {
+  players: string[];              // [player1] | [player1, player2]
+
+  bid: number;                    // ставка одного игрока                                                  //генерируется в lobby
+  total: number;                  // общая сумма (bid * 2)                                                //генерируется в lobby
+  count: number;                  // количество клеток (у нас базово 12)                                  //генерируется в lobby
+
+  board: Box[];                   // игровое поле (пустое в waiting)                                //генерируется в match
+  balances: Record<string, number>; // балансы игроков
+
+  currentTurn?: string;           // чей ход (только при active)
+  status: 'waiting' | 'active' | 'finished'; //status 
+}
+
+
+/* основная функция, создает "экзепляр" отдельного матча */
+export function startMatch(match: Match): Match {
+  if (match.players.length !== 2) {
+    throw new Error('Для старта нужно дождаться 2-го игрока');
+  }
+
+  const [p1, p2] = match.players;
+
+  const startedMatch: Match = {
     ...match,
     board: createBoard(match.total, match.count),
-    status: "active",
+    balances: {
+      [p1]: 0,
+      [p2]: 0,
+    },
+    currentTurn: Math.random() < 0.5 ? p1 : p2,
+    status: 'active',
   };
+
+  // Сохраняем матч в сторадж 
+  saveMatch(startedMatch);
+
+  return startedMatch;
 }
 
+
 /* вспомогательная функция, сохранить текущее состояние отдельного матча */
-function saveMatch(match: Match): void {
+export function saveMatch(match: Match): void {
   matches.set(match.id, match);
 }
 
 /* вспомогательная функция, получить текущее состояние отдельного матча */
-function getMatch(matchId: string): Match | null {
+export function getMatch(matchId: string): Match | null {
   const match = matches.get(matchId);
   if (match !== undefined) {
     return match;
