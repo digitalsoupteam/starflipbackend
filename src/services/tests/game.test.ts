@@ -1,45 +1,49 @@
-import { makeMove, createBoard } from '../game.service';
-import { Match } from '../../../structures/match.struct';
+import { Match, MoveResult } from '../../../structures/match.struct';
+import { createBoard, makeMove } from '../game.service';
 
-/* мнимый матч ОБНОВИТЬ ПОЛЯ! */
-let match: Match = {
+// Создаем тестовый матч
+const match: Match = {
   id: 'test-match',
-  status: 'active',
+  createdAt: Date.now(),
+  creator: 'player1',
   players: ['player1', 'player2'],
+  bid: 50,
+  total: 100,
+  count: 12,
+  board: createBoard(100, 12), // создаем поле сразу
+  balances: { player1: 0, player2: 0 },
   currentTurn: 'player1',
-  balances: {
-    player1: 0,
-    player2: 0,
-  },
-  board: createBoard(200, 12),
+  status: 'active',
 };
 
-/* функция создает поочередное вскрытие двумя игроками клеток с 1 по 12-ую */
-function playAllMoves(match: Match) {
-  let currentMatch = match;
+// Функция для пошагового теста
+function playAllMoves(testMatch: Match) {
+  console.log('--- Старт игры ---');
+  for (let i = 0; i < testMatch.count; i++) {
+    const currentPlayer = testMatch.currentTurn!;
+    const boxId = i; // просто открываем по порядку
+    const result: MoveResult = makeMove(testMatch, currentPlayer, boxId);
 
-  for (let i = 0; i < 12; i++) {
-    const currentPlayer = currentMatch.currentTurn;
-    const boxToOpen = currentMatch.board.find(b => !b.openedBy);
+   if (result.error) {
+  console.log(`Ошибка: ${result.error}`);
+} else if (result.match) {
+  console.log(`Ход ${i + 1}: ${currentPlayer} открыл клетку ${boxId}`);
+  console.log('Балансы:', result.match.balances);
 
-    if (!boxToOpen) break;
-
-    const result = makeMove(currentMatch, currentPlayer, boxToOpen.id);
-
-    if (result.error) {
-      console.log(`Turn ${i + 1}: ${currentPlayer} err:`, result.error);
-      break;
-    } else {
-      console.log(`Turn ${i + 1}: ${currentPlayer} open ${boxToOpen.id}`);
-      console.log('Balances:', result.match.balances);
-    }
-
-    currentMatch = result.match;
-  }
-
-  console.log('Game is over! Status:', currentMatch.status);
-  console.log('Finished Balances:', currentMatch.balances);
+  // обновляем матч для следующего хода
+  testMatch.board = result.match.board;
+  testMatch.currentTurn = result.match.currentTurn;
+  testMatch.status = result.match.status;
+} else {
+  console.log('Что-то пошло не так: result.match отсутствует');
 }
 
-/* start test */
+  }
+
+  console.log('--- Игра завершена ---');
+  console.log('Статус матча:', testMatch.status);
+  console.log('Итоговые балансы:', testMatch.balances);
+}
+
+// Запуск теста
 playAllMoves(match);
