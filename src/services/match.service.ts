@@ -4,6 +4,7 @@ import { Match, MoveResult } from "../../structures/match.struct";
 import { createBoard } from "./game.service";
 import { makeMove } from "./game.service";
 import { matches } from "../../storage/storage";
+import { hashBoard } from "./utils/boardHash";
 
 /* 
 
@@ -22,35 +23,36 @@ Match {
 
   board: Box[];                   // игровое поле (пустое в waiting)                                //генерируется в match
   balances: Record<string, number>; // балансы игроков
+  boardHash: string,
 
   currentTurn?: string;           // чей ход (только при active)
+
   status: 'waiting' | 'active' | 'finished'; //status 
 }
 
 
 /* основная функция, создает "экзепляр" отдельного матча */
+
 export function startMatch(match: Match): Match {
   if (match.players.length !== 2) {
     throw new Error('Для старта нужно дождаться 2-го игрока');
   }
 
   const [p1, p2] = match.players;
+  const board = createBoard(match.total, match.count);
 
   const startedMatch: Match = {
     ...match,
-    board: createBoard(match.total, match.count),
-    balances: {
-      [p1]: 0,
-      [p2]: 0,
-    },
+    board,
+    balances: { [p1]: 0, [p2]: 0 },
     currentTurn: Math.random() < 0.5 ? p1 : p2,
     status: 'active',
+    boardHash: hashBoard(board), // хеш-доски 
   };
 
-  // Сохраняем матч в сторадж 
+  //сохраняем матч после старта
   saveMatch(startedMatch);
-
-  return startedMatch;
+  return startedMatch; //этот ретурн типа сразу где-то поюзать в ответе на фронте мб
 }
 
 

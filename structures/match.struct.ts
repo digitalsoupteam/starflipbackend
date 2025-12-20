@@ -21,6 +21,7 @@ export interface Match {
   count: number;                  // количество клеток (у нас базово 12)
 
   board: Box[];                   // игровое поле (пустое в waiting)
+  boardHash?: string;            // хеш поля
   balances: Record<string, number>; // балансы игроков
 
   currentTurn?: string;           // чей ход (только при active)
