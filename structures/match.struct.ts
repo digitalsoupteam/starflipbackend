@@ -1,4 +1,3 @@
-import { createBoard } from '../src/services/game.service';
 /* Структура матча и сопутствующих сущностей */
 
 /* игрокая клетка и ее свойства */ 
@@ -10,7 +9,7 @@ openedBy?: string // кто открыл клетку
 
 /* структура матча */
 export interface Match {
-  id: string;                     // id матча
+  id: string                   // id матча
   createdAt: number;              // timestamp создания
   creator: string;                // создатель матча (players[0])
 

@@ -1,97 +1,128 @@
 // Создание и обновление отдельного матча
 
 import { Match, MoveResult } from "../../structures/match.struct";
+import { saveFinishedMatch } from "./utils/match.repository";
 import { createBoard } from "./game.service";
 import { makeMove } from "./game.service";
-import { matches } from "../../storage/storage";
 import { hashBoard } from "./utils/boardHash";
+import {
+  rC,
+  activeGet,
+  activeSave,
+  GetResult,
+} from "../../storage/activeStorage";
 
-/* 
-
-принимает из Lobby объект скомпанованного матча и меняет его на status active дополняя его
-
-Match {
-  id: string;                     // id матча                                                                       //генерируется в lobby
-  createdAt: number;              // timestamp создания                                                           //генерируется в lobby
-  creator: string;                // создатель матча (players[0])                                              //генерируется в lobby
-
-  players: string[];              // [player1] | [player1, player2]
-
-  bid: number;                    // ставка одного игрока                                                  //генерируется в lobby
-  total: number;                  // общая сумма (bid * 2)                                                //генерируется в lobby
-  count: number;                  // количество клеток (у нас базово 12)                                  //генерируется в lobby
-
-  board: Box[];                   // игровое поле (пустое в waiting)                                //генерируется в match
-  balances: Record<string, number>; // балансы игроков
-  boardHash: string,
-
-  currentTurn?: string;           // чей ход (только при active)
-
-  status: 'waiting' | 'active' | 'finished'; //status 
-}
-
-
-/* основная функция, создает "экзепляр" отдельного матча */
-
+/* создает "экземпляр" отдельного матча */
 export function startMatch(match: Match): Match {
   if (match.players.length !== 2) {
-    throw new Error('Для старта нужно дождаться 2-го игрока');
+    throw new Error("Для старта нужно дождаться 2-го игрока");
   }
 
   const [p1, p2] = match.players;
   const board = createBoard(match.total, match.count);
+  const currentTurn = Math.random() < 0.5 ? p1 : p2;
 
-  const startedMatch: Match = {
+  return {
     ...match,
     board,
     balances: { [p1]: 0, [p2]: 0 },
-    currentTurn: Math.random() < 0.5 ? p1 : p2,
-    status: 'active',
-    boardHash: hashBoard(board), // хеш-доски 
+    currentTurn,
+    status: "active",
+    boardHash: hashBoard(board),
   };
-
-  //сохраняем матч после старта
-  saveMatch(startedMatch);
-  return startedMatch; //этот ретурн типа сразу где-то поюзать в ответе на фронте мб
 }
 
+/* асинк-обертка: создает матч и сохраняет его */
+export async function startAndSaveMatch(match: Match): Promise<Match> {
+  const newMatch = startMatch(match);
 
-/* вспомогательная функция, сохранить текущее состояние отдельного матча */
-export function saveMatch(match: Match): void {
-  matches.set(match.id, match);
-}
-
-/* вспомогательная функция, получить текущее состояние отдельного матча */
-export function getMatch(matchId: string): Match | null {
-  const match = matches.get(matchId);
-  if (match !== undefined) {
-    return match;
-  } else {
-    return null;
+  const saveRes = await activeSave(newMatch);
+  if (!saveRes.ok) {
+    console.error("Не удалось сохранить матч", saveRes.error);
   }
+
+  return newMatch;
 }
 
-/* вспомогательная функция, на основе функции из game.service, достает матч,
-применяет ход и обновляет данный матча, если все проверки пройдены */
-export function moveInMatch(
+/* сохранить текущее состояние матча */
+export async function saveMatch(match: Match): Promise<boolean> {
+  const res = await activeSave(match);
+
+  if (!res.ok) {
+    console.error(`Redis save error (match ${match.id})`, res.error);
+    return false;
+  }
+
+  return true;
+}
+
+/* получить текущее состояние матча */
+export async function getMatch(matchId: string): Promise<GetResult> {
+  const res = await activeGet(matchId);
+
+  if (!res.ok) {
+    console.error(`Redis get error (match ${matchId})`, res.error);
+  }
+
+  return res;
+}
+
+/* применить ход к матчу */
+export async function moveInMatch(
   matchId: string,
   playerId: string,
   boxId: number
-): MoveResult {
-  //достаём матч
-  const match = getMatch(matchId);
+): Promise<MoveResult> {
+  const lockKey = `match:${matchId}:lock`;
+  const cooldownKey = `player:${playerId}:cooldown`;
 
-  if (!match) {
-    return { error: "match not found" };
+  // Проверяем, не находится ли игрок в периоде ожидания
+  const isCoolingDown = await rC.get(cooldownKey);
+  if (isCoolingDown) {
+    return { error: "too fast, wait for your turn" };
   }
 
-  //прогоняем game.service
-  const result = makeMove(match, playerId, boxId);
-
-  //если все ок - сохраняем мач
-  if (!result.error && result.match) {
-    saveMatch(result.match);
+    // Пытаемся взять лок на матч
+  const locked = await rC.set(lockKey, "1", { NX: true, PX: 3000 });
+  if (!locked) {
+    return { error: "match is busy" };
   }
 
-  return result;
+  try {
+    const res = await getMatch(matchId);
+
+    if (!res.ok) {
+      return { error: "storage error" };
+    }
+
+    if (!res.match) {
+      return { error: "match not found" };
+    }
+
+    const match = res.match;
+
+    if (!match.currentTurn || match.currentTurn !== playerId) {
+       // Устанавливаем кулдавн на 15 секунд для игрока
+      await rC.set(cooldownKey, "1", { PX: 15000 });
+      return { error: "its not your turn" };
+    }
+
+    const result = makeMove(match, playerId, boxId);
+
+      if (!result.error && result.match) {
+      // Сохраняем матч в Redis
+      const saved = await saveMatch(result.match);
+      if (!saved) return { error: "failed to save match" };
+
+      // Если матч завершён, архивируем в SQLite
+      if (result.match.status === "finished") {
+        saveFinishedMatch(result.match); // <- вызываем **только здесь**
+      }
+
+    return result;
+  }
+  } finally {
+    await rC.del(lockKey);
+  }
+  return { error: "unknown error" };
 }

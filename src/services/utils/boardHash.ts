@@ -11,4 +11,4 @@ function serializeBoard(board: Box[]): string {
 export function hashBoard(board: Box[]): string {
   const serialized = serializeBoard(board);
   return crypto.createHash('sha256').update(serialized).digest('hex');
-}
+} 

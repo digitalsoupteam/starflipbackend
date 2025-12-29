@@ -4,7 +4,8 @@ import { Match, Box, MoveResult } from "../../structures/match.struct";
 import { randomizePool } from "./utils/random";
 import { hashBoard } from "./utils/boardHash";
 
-/* основная функция, делает ход, но проверяет validateMove(), прежде, чем ходить, если все ок то делает applyMove(), обновляя данные матча, также проверяет, если все клетки заполнены isGameOver() возвращая статус finished для матча */
+/* делает ход, проверяет validateMove(), прежде, чем ходить, если все ок то делает applyMove(), 
+обновляя данные матча, также проверяет, если все клетки заполнены isGameOver() возвращая статус finished для матча */
 export function makeMove(
   match: Match,
   playerId: string,
@@ -69,22 +70,32 @@ export function validateMove(
 }
 
 /* вспомогательная функция, применяет ход и обновляет статус матча, если все проверки пройдены */
-export function applyMove(match: Match, playerId: string, boxId: number): Match {
-  const box = match.board.find(b => b.id === boxId)!;
+export function applyMove(
+  match: Match,
+  playerId: string,
+  boxId: number
+): Match {
+  const board = match.board.map(box =>
+    box.id === boxId
+      ? { ...box, openedBy: playerId }
+      : box
+  );
 
-  box.openedBy = playerId;
-  match.balances[playerId] = (match.balances[playerId] ?? 0) + box.value;
+  const balances = {
+    ...match.balances,
+    [playerId]: (match.balances[playerId] ?? 0) +
+      (board.find(b => b.id === boxId)!.value),
+  };
 
-  // обновляем текущий ход
   const nextPlayer = match.players.find(p => p !== playerId);
-  if (nextPlayer) {
-    match.currentTurn = nextPlayer;
-  }
 
-  // обновляем хеш доски после хода
-  match.boardHash = hashBoard(match.board);
-
-  return match;
+  return {
+    ...match,
+    board,
+    balances,
+    currentTurn: nextPlayer,
+    boardHash: hashBoard(board),
+  };
 }
 
 /* вспомогательная функция, проверяет, открыто ли все поле, что является концом игры в случае true */
