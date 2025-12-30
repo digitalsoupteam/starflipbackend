@@ -116,7 +116,7 @@ export async function moveInMatch(
 
       // Если матч завершён, архивируем в SQLite
       if (result.match.status === "finished") {
-        saveFinishedMatch(result.match); // <- вызываем **только здесь**
+        saveFinishedMatch(result.match); 
       }
 
     return result;
