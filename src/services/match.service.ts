@@ -114,7 +114,7 @@ export async function moveInMatch(
       const saved = await saveMatch(result.match);
       if (!saved) return { error: "failed to save match" };
 
-      // Если матч завершён, архивируем в SQLite
+      // Если матч завершён, архивируем в sqlite
       if (result.match.status === "finished") {
         saveFinishedMatch(result.match); 
       }

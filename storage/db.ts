@@ -17,3 +17,14 @@ db.exec(`
 `);
 
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS liveMatches (
+    id TEXT PRIMARY KEY,
+    created_at INTEGER NOT NULL,
+    bid INTEGER NOT NULL,
+    total INTEGER NOT NULL,
+    players TEXT NOT NULL,
+    balances TEXT NOT NULL,
+    board TEXT NOT NULL
+  );
+`);
