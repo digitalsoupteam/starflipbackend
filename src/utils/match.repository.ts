@@ -2,8 +2,9 @@ import { db } from "../../../storage/db";
 import { Match } from "../../../structures/match.struct";
 import { getGameResult } from "../game.service";
 
+/* БД постоянная для хранения истории матчей */
 /* сохранить данные в нашу sqlку */
-export function saveFinishedMatch(match: Match) {
+export async function saveFinishedMatch(match: Match) {
   if (match.status !== "finished") {
     throw new Error("Матч ещё не завершён");
   }

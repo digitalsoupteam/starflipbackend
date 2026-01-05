@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Box } from '../../../structures/match.struct';
+import { Box } from '../structures/match.struct';
 
 function serializeBoard(board: Box[]): string {
   return board

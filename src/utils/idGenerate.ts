@@ -1,4 +1,4 @@
-import { rC } from "../../../storage/activeStorage";
+import { rC } from "../storage/activeStorage";
 
 export async function generateId(): Promise<string> {
   let id: string;

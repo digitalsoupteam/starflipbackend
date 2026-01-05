@@ -1,16 +1,16 @@
-// Создание и обновление отдельного матча
+// Запуск матча, Сохранение, Примнение ходов
 
-import { Match, MoveResult } from "../../structures/match.struct";
-import { saveFinishedMatch } from "./utils/match.repository";
+import { Match, MoveResult } from "../structures/match.struct";
 import { createBoard } from "./game.service";
 import { makeMove } from "./game.service";
-import { hashBoard } from "./utils/boardHash";
+import { hashBoard } from "../utils/boardHash";
 import {
   rC,
   activeGet,
   activeSave,
   GetResult,
-} from "../../storage/activeStorage";
+} from "../storage/activeStorage";
+
 
 /* создает "экземпляр" отдельного матча */
 export function startMatch(match: Match): Match {
@@ -25,7 +25,7 @@ export function startMatch(match: Match): Match {
   return {
     ...match,
     board,
-    balances: { [p1]: 0, [p2]: 0 },
+    balances: { [p1]: match.bid, [p2]: match.bid },
     currentTurn,
     status: "active",
     boardHash: hashBoard(board),
@@ -58,13 +58,13 @@ export async function saveMatch(match: Match): Promise<boolean> {
 
 /* получить текущее состояние матча */
 export async function getMatch(matchId: string): Promise<GetResult> {
-  const res = await activeGet(matchId);
-
-  if (!res.ok) {
-    console.error(`Redis get error (match ${matchId})`, res.error);
+  try {
+    const data = await rC.get(`match:${matchId}`);
+    if (!data) return { ok: false, error: "not_found" };  // если нет данных, ok: false
+    return { ok: true, match: JSON.parse(data) as Match };  // тут match точно есть
+  } catch (error) {
+    return { ok: false, error };
   }
-
-  return res;
 }
 
 /* применить ход к матчу */
@@ -109,20 +109,15 @@ export async function moveInMatch(
 
     const result = makeMove(match, playerId, boxId);
 
-      if (!result.error && result.match) {
-      // Сохраняем матч в Redis
+    if (!result.error && result.match) {
       const saved = await saveMatch(result.match);
-      if (!saved) return { error: "failed to save match" };
-
-      // Если матч завершён, архивируем в sqlite
-      if (result.match.status === "finished") {
-        saveFinishedMatch(result.match); 
+      if (!saved) {
+        return { error: "failed to save match" };
       }
+    }
 
     return result;
-  }
   } finally {
     await rC.del(lockKey);
   }
-  return { error: "unknown error" };
 }

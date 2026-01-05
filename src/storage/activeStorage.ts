@@ -11,8 +11,8 @@ rC.connect().catch((err) => {
 export type SaveResult = { ok: true } | { ok: false; error: unknown };
 
 export type GetResult =
-  | { ok: true; match: Match | null }
-  | { ok: false; error: unknown };
+  | { ok: true; match: Match }
+  | { ok: false; error: any };
 
 export type DeleteResult =
   | { ok: true; deleted: boolean }
@@ -35,9 +35,13 @@ export async function activeSave(match: Match): Promise<SaveResult> {
 export async function activeGet(matchId: string): Promise<GetResult> {
   try {
     const data = await rC.get(matchKey(matchId));
+    if (!data) {
+      return { ok: false, error: "not_found" };
+    }
+
     return {
       ok: true,
-      match: data ? (JSON.parse(data) as Match) : null,
+      match: JSON.parse(data) as Match, 
     };
   } catch (error) {
     return { ok: false, error };

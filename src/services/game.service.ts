@@ -1,11 +1,11 @@
 // Движок игры
 
-import { Match, Box, MoveResult } from "../../structures/match.struct";
-import { randomizePool } from "./utils/random";
-import { hashBoard } from "./utils/boardHash";
-
+import { Match, Box, MoveResult } from "../structures/match.struct";
+import { randomizePool } from "../utils/random";
+import { hashBoard } from "../utils/boardHash";
 /* делает ход, проверяет validateMove(), прежде, чем ходить, если все ок то делает applyMove(), 
 обновляя данные матча, также проверяет, если все клетки заполнены isGameOver() возвращая статус finished для матча */
+
 export function makeMove(
   match: Match,
   playerId: string,

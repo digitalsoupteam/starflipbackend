@@ -1,54 +1,117 @@
-// Поиск и подбор соперников
+// Поиск и создание пары для игры
 
-import { Match } from "../../structures/match.struct";
-import { createBoard } from "./game.service";
-import { generateId } from "./utils/idGenerate";
-import { rC } from "../../storage/activeStorage";
+import { Match } from "../structures/match.struct";
+import { generateId } from "../utils/idGenerate";
+import { rC } from "../storage/activeStorage";
+import { startAndSaveMatch } from "./match.service";
 
+/* тайп для луаскрипта ниже */
+type MatchAction =
+  | { type: "join"; matchId: string }
+  | { type: "create" }
+  | { type: "wait" };
+
+/* луа скрипт для работы с редисом  */
+async function getMatchAction(): Promise<MatchAction> {
+  // rC.eval выполняет луа скрипт в редиссе
+  const result = await rC.eval(
+    /* получаем самый старый матч который ждет соперника, если такой матч есть то вернем join,
+   если такого нет, пробуем поставить лок на крейт матч, если удалось - то create,
+   если не удалось поставить лок, то просим чуть чуть подождать */
+    `
+    local matchId = redis.call("ZRANGE", "waiting:matches", 0, 0)[1]
+
+    if matchId then
+      return { "join", matchId }
+    end
+
+    local lock = redis.call(
+      "SET",
+      "lock:waiting:match:create",
+      "1",
+      "NX",
+      "PX",
+      3000
+    )
+
+    if lock then
+      return { "create", "" }
+    end
+
+    return { "wait", "" }
+    `,
+    { keys: [], arguments: [] }
+  );
+
+  if (!result) {
+    throw new Error("Lua script returned null");
+  }
+
+  const [type, matchId] = result as [string, string];
+
+  if (type === "join") {
+    return { type: "join", matchId };
+  }
+
+  if (type === "create") {
+    return { type: "create" };
+  }
+
+  return { type: "wait" };
+}
+
+/* основной цикл матч мейкинга */
 export async function joinOrCreateMatch(
   playerId: string,
   bid: number
 ): Promise<Match> {
-  // Пытаемся присоединиться к существующему матч
-  try {
-    const match = await joinWaitingMatch(playerId);
-    if (match) {
-      // Играем в уже существующем матче
+  while (true) {
+    const action = await getMatchAction();
+
+    // исходя из полученного в гетМачЕкшен решаем что делаем дальше
+    if (action.type === "join") {
+      const match = await joinWaitingMatch(playerId);
+      if (match) return match;
+    }
+
+    if (action.type === "create") {
+      const match = await createWaitingMatch(playerId, bid);
+      // снимаем lock
+      await rC.del("lock:waiting:match:create");
       return match;
     }
 
-    // Если свободного матча нет — создаём новый
-    const newMatch = await createWaitingMatch(playerId, bid);
-    return newMatch;
-  } catch (error) {
-    // Если что-то пошло не так — возвращаем понятную ошибку
-    throw new Error(
-      `Не удалось найти или создать матч: ${
-        error instanceof Error ? error.message : error
-      }`
-    );
+    // wait => короткая пауза
+    let attempts = 0;
+    await new Promise((r) => setTimeout(r, 50));
+    attempts++;
+    if (attempts > 20) {
+      // максимум 1 секунда
+      throw new Error(`${playerId} не смог подключиться к матчу`);
+    }
   }
 }
 
 /* создание ожидающего матча */
-async function createWaitingMatch(
+export async function createWaitingMatch(
   playerId: string,
   bid: number
 ): Promise<Match> {
- const id = await generateId();
+  // генерируем укикальный матчАйди
+  const id = await generateId();
 
-const match: Match = {
-  id, // строка
-  createdAt: Date.now(),
-  creator: playerId,
-  players: [playerId],
-  bid,
-  total: bid * 2,
-  count: 12,
-  board: [],
-  balances: { [playerId]: 0 },
-  status: "waiting",
-};
+  const match: Match = {
+    id, // строка (address пользоватля)
+    createdAt: Date.now(),
+    creator: playerId,
+    players: [playerId],
+    bid,
+    total: bid * 2,
+    count: 12,
+    board: [],
+    balances: { [playerId]: 0 },
+    status: "waiting",
+  };
 
   // записываем в редис новый ожидающий мач
   await rC.set(`waiting:match:${match.id}`, JSON.stringify(match));
@@ -63,60 +126,61 @@ const match: Match = {
   return match;
 }
 
-async function joinWaitingMatch(playerId: string): Promise<Match | null> {
-  //получаем самый последний мач он приходит в виде масива, вытаскиваем элемент либо нул
+/* подключение к матчу */
+export async function joinWaitingMatch(
+  playerId: string
+): Promise<Match | null> {
+  // получаем последний ожидающий матч
   const oldestWaitingMatch = await rC.zRange("waiting:matches", 0, 0);
   if (oldestWaitingMatch.length === 0) {
+    // значит нет ожидающих матчей
     return null;
   }
-  const matchId = oldestWaitingMatch[0];
 
-  // создаем ключ лока чтобы залочить этот матч исключив гонку кликов на 3 сек
+  //парсим его матчАйди (в редисе они в виде списка вроде бы)
+  const matchId = oldestWaitingMatch[0];
   const lockKey = `waiting:match:${matchId}:lock`;
+
+  // локаем данный матч
   const locked = await rC.set(lockKey, "1", { NX: true, PX: 3000 });
   if (!locked) {
-    throw new Error("Матч уже занят, попробуйте другой");
+    // значит кто то уже создал лок на этот матч быстрей
+    return null;
   }
 
   try {
-    // поверка что матч с этим айди есть и доступен
+    // если анти кейсы прошли, то берем этот матч из редис
     const raw = await rC.get(`waiting:match:${matchId}`);
     if (!raw) {
-      // JSON не найден чистим ZSET
+      // если вдруг его уже не стало по какой то причине - то удаляем его из вейтинг на этом уровне
       await rC.zRem("waiting:matches", matchId);
-      throw new Error("Матч недоступен, найдите новый");
+      return null;
     }
 
+    // парсим данные полученного матча с редиса
     const match = JSON.parse(raw);
 
     if (match.status !== "waiting") {
-      throw new Error("Матч уже активен, найдите другой");
+      // если матч уже актив (не вейтинг) по какой то причине - то скипаем
+      return null;
     }
 
-    // дбавляем второго игрока
+    // в случае если вейтинг, то =>
     match.players.push(playerId);
     match.balances[playerId] = 0;
-
-    // меняем матч статус: waiting => active
     match.status = "active";
-    match.board = createBoard(match.total, match.count);
-    match.currentTurn = match.players[Math.floor(Math.random() * match.players.length)];
 
-    // сохраняем обновлённый матч в Redis
-    await rC.set(`match:${match.id}`, JSON.stringify(match));
+    const readyMatch = await startAndSaveMatch(match);
 
-    // убираем из ZSET ожидания
+    // сохраняем матч в активные в редис
+    await rC.set(`match:${match.id}`, JSON.stringify(readyMatch));
+    // удаляем матч из ожидающих в редис
     await rC.zRem("waiting:matches", matchId);
 
-    return match;
-  } catch (error) {
-    // глобальный еррор
-    throw new Error(
-      `Ошибка при получении матча: ${
-        error instanceof Error ? error.message : error
-      }`
-    );
+    // возвращаем  объект собраного матча
+    return readyMatch;
   } finally {
+    // удаляем все возможные локи в данной сессии
     await rC.del(lockKey);
   }
 }
