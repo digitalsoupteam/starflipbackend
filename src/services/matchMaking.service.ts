@@ -40,7 +40,7 @@ async function getMatchAction(): Promise<MatchAction> {
 
     return { "wait", "" }
     `,
-    { keys: [], arguments: [] }
+    { keys: [], arguments: [] },
   );
 
   if (!result) {
@@ -63,7 +63,7 @@ async function getMatchAction(): Promise<MatchAction> {
 /* основной цикл матч мейкинга */
 export async function joinOrCreateMatch(
   playerId: string,
-  bid: number
+  bid: number,
 ): Promise<Match> {
   while (true) {
     const action = await getMatchAction();
@@ -95,7 +95,7 @@ export async function joinOrCreateMatch(
 /* создание ожидающего матча */
 export async function createWaitingMatch(
   playerId: string,
-  bid: number
+  bid: number,
 ): Promise<Match> {
   // генерируем укикальный матчАйди
   const id = await generateId();
@@ -128,7 +128,7 @@ export async function createWaitingMatch(
 
 /* подключение к матчу */
 export async function joinWaitingMatch(
-  playerId: string
+  playerId: string,
 ): Promise<Match | null> {
   // получаем последний ожидающий матч
   const oldestWaitingMatch = await rC.zRange("waiting:matches", 0, 0);
