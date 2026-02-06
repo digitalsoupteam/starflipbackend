@@ -31,7 +31,7 @@ async function getMatchAction(): Promise<MatchAction> {
       "1",
       "NX",
       "PX",
-      3000
+      6000
     )
 
     if lock then
