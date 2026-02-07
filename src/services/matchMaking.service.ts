@@ -7,44 +7,77 @@ import { startAndSaveMatch } from "./match.service";
 
 /* тайп для луаскрипта ниже */
 type MatchAction =
-  | { type: "join"; matchId: string }
+  | { type: "join"; matchId: string }  
   | { type: "create" }
   | { type: "wait" };
 
 /* луа скрипт для работы с редисом  */
 async function getMatchAction(): Promise<MatchAction> {
-  // rC.eval выполняет луа скрипт в редиссе
   const result = await rC.eval(
-    /* получаем самый старый матч который ждет соперника, если такой матч есть то вернем join,
-   если такого нет, пробуем поставить лок на крейт матч, если удалось - то create,
-   если не удалось поставить лок, то просим чуть чуть подождать */
     `
-    local matchId = redis.call("ZRANGE", "waiting:matches", 0, 0)[1]
-
-    if matchId then
-      return { "join", matchId }
+    -- 1. Сначала ищем матчи для присоединения (более агрессивно)
+    local matchIds = redis.call("ZRANGE", "waiting:matches", 0, 9)  -- Смотрим 10 матчей
+    
+    if matchIds and #matchIds > 0 then
+      -- Пробуем каждый матч по очереди
+      for i = 1, #matchIds do
+        local matchId = matchIds[i]
+        local exists = redis.call("EXISTS", "waiting:match:" .. matchId)
+        
+        if exists == 1 then
+          -- Пытаемся залочить этот матч для попытки присоединения
+          local tryLockKey = "waiting:match:" .. matchId .. ":trylock"
+          local lock = redis.call(
+            "SET",
+            tryLockKey,
+            ARGV[1],
+            "NX",
+            "PX",
+            200  -- TTL: 200ms для быстрой блокировки попытки присоединения
+          )
+          
+          if lock then
+            return { "join", matchId }
+          end
+        else
+          -- Удаляем несуществующий матч из списка ожидания
+          redis.call("ZREM", "waiting:matches", matchId)
+        end
+      end
     end
-
+    
+    -- 2. Создание нового матча - только если очень мало ожидающих
+    local waitingCount = redis.call("ZCARD", "waiting:matches")
+    
+    -- Если уже есть 10+ ожидающих матчей, не создаем новые (ждем пока очистятся)
+    if waitingCount > 10 then
+      return { "wait", "" }
+    end
+    
+    -- 3. Создаем новый матч с коротким lock
     local lock = redis.call(
       "SET",
       "lock:waiting:match:create",
-      "1",
+      ARGV[1],
       "NX",
       "PX",
-      6000
+      500  -- TTL: 500ms lock на создание матча (короткий, чтобы не блокировать других)
     )
-
+    
     if lock then
       return { "create", "" }
     end
-
+    
     return { "wait", "" }
     `,
-    { keys: [], arguments: [] },
+    { 
+      keys: [], 
+      arguments: [`${Date.now()}:${Math.random()}`] 
+    },
   );
 
   if (!result) {
-    throw new Error("Lua script returned null");
+    return { type: "wait" };
   }
 
   const [type, matchId] = result as [string, string];
@@ -65,30 +98,77 @@ export async function joinOrCreateMatch(
   playerId: string,
   bid: number,
 ): Promise<Match> {
-  while (true) {
+  const maxAttempts = 200; // Максимальное количество попыток найти/создать матч
+  const initialWaitTime = 20; // Начальная задержка между попытками в миллисекундах
+  
+  let totalWaitTime = 0;
+  let lastActionType = '';
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const action = await getMatchAction();
+    lastActionType = action.type;
 
-    // исходя из полученного в гетМачЕкшен решаем что делаем дальше
+    // Если нашли матч для присоединения
     if (action.type === "join") {
-      const match = await joinWaitingMatch(playerId);
-      if (match) return match;
+      const match = await joinWaitingMatch(playerId, action.matchId);
+      if (match) {
+        console.log(`Player ${playerId} joined match ${match.id} on attempt ${attempt + 1}`);
+        return match;
+      }
+      // Если не удалось присоединиться, сразу следующая попытка
+      continue;
     }
 
+    // Если нужно создать новый матч
     if (action.type === "create") {
-      const match = await createWaitingMatch(playerId, bid);
-      // снимаем lock
-      await rC.del("lock:waiting:match:create");
-      return match;
+      try {
+        const match = await createWaitingMatch(playerId, bid);
+        console.log(`Player ${playerId} created match ${match.id} on attempt ${attempt + 1}`);
+        return match;
+      } catch (error) {
+        // Если не удалось создать, продолжаем попытки
+        console.log(`Player ${playerId} failed to create match: ${error}`);
+        continue;
+      } finally {
+        // Всегда снимаем lock на создание (даже если ошибка)
+        await rC.del("lock:waiting:match:create").catch(() => {});
+      }
     }
 
-    // wait => короткая пауза
-    let attempts = 0;
-    await new Promise((r) => setTimeout(r, 50));
-    attempts++;
-    if (attempts > 20) {
-      // максимум 1 секунда
-      throw new Error(`${playerId} не смог подключиться к матчу`);
+    // Если нужно подождать (wait) - используем умную задержку
+    let waitTime = initialWaitTime;
+    
+    // Увеличиваем задержку экспоненциально если долго ждем
+    if (attempt > 20) {
+      waitTime = Math.min(waitTime * Math.pow(1.3, attempt - 20), 300);
     }
+    
+    // Случайное отклонение для распределения нагрузки (предотвращает синхронизацию)
+    waitTime = waitTime * (0.8 + Math.random() * 0.4);
+    
+    await new Promise((r) => setTimeout(r, waitTime));
+    totalWaitTime += waitTime;
+    
+    // Если ждем слишком долго, пробуем принудительно создать матч
+    if (totalWaitTime > 8000 && attempt > maxAttempts / 2) {
+      console.log(`Player ${playerId} trying force create after ${totalWaitTime}ms`);
+      try {
+        const match = await createWaitingMatch(playerId, bid);
+        return match;
+      } catch (error) {
+        // Если не получилось, продолжаем обычный цикл
+      }
+    }
+  }
+  
+  // Последняя попытка - пробуем создать матч любой ценой перед ошибкой
+  try {
+    console.log(`Player ${playerId} last resort create`);
+    const match = await createWaitingMatch(playerId, bid);
+    return match;
+  } catch (error) {
+    console.log(`Player ${playerId} completely failed after ${maxAttempts} attempts, last action: ${lastActionType}`);
+    throw new Error(`${playerId} не смог подключиться к матчу после ${maxAttempts} попыток`);
   }
 }
 
@@ -97,90 +177,143 @@ export async function createWaitingMatch(
   playerId: string,
   bid: number,
 ): Promise<Match> {
-  // генерируем укикальный матчАйди
-  const id = await generateId();
-
-  const match: Match = {
-    id, // строка (address пользоватля)
-    createdAt: Date.now(),
-    creator: playerId,
-    players: [playerId],
-    bid,
-    total: bid * 2,
-    count: 12,
-    board: [],
-    balances: { [playerId]: 0 },
-    status: "waiting",
-  };
-
-  // записываем в редис новый ожидающий мач
-  await rC.set(`waiting:match:${match.id}`, JSON.stringify(match));
-
-  // айди матча ставим в отдельный сортировнаный список с айдишниками
-  await rC.zAdd("waiting:matches", {
-    score: Date.now(),
-    value: match.id,
+  // Проверяем, не создает ли уже этот игрок матч (защита от дублирования)
+  const playerLockKey = `player:creating:${playerId}`;
+  const playerLocked = await rC.set(playerLockKey, "1", { 
+    NX: true,  // Только если ключа нет
+    PX: 3000   // TTL: 3000ms (3 секунды) для блокировки игрока от создания нескольких матчей
   });
+  
+  if (!playerLocked) {
+    throw new Error(`Player ${playerId} is already creating a match`);
+  }
 
-  //возвращаем сам обьект матча
-  return match;
+  try {
+    const id = await generateId();
+    
+    const match: Match = {
+      id,
+      createdAt: Date.now(),
+      creator: playerId,
+      players: [playerId],
+      bid,
+      total: bid * 2,
+      count: 12,
+      board: [],
+      balances: { [playerId]: 0 },
+      status: "waiting",
+    };
+
+    // Используем транзакцию для атомарного сохранения
+    const multi = rC.multi();
+    
+    // Сохраняем ожидающий матч с TTL 5 минут (300 секунд)
+    // Важно: если игрок уйдет, матч автоматически удалится через 5 минут
+    multi.set(`waiting:match:${match.id}`, JSON.stringify(match), {
+      EX: 300  // TTL: 300 секунд = 5 минут для ожидающих матчей
+    });
+    
+    // Добавляем ID матча в отсортированный список ожидающих
+    multi.zAdd("waiting:matches", {
+      score: Date.now(),  // Время создания как score для сортировки
+      value: match.id,
+    });
+    
+    // Снимаем глобальный lock на создание матча
+    multi.del("lock:waiting:match:create");
+    
+    await multi.exec();
+
+    return match;
+  } finally {
+    // Всегда снимаем блокировку игрока (даже если была ошибка)
+    await rC.del(playerLockKey).catch(() => {});
+  }
 }
 
 /* подключение к матчу */
 export async function joinWaitingMatch(
   playerId: string,
+  matchId: string,
 ): Promise<Match | null> {
-  // получаем последний ожидающий матч
-  const oldestWaitingMatch = await rC.zRange("waiting:matches", 0, 0);
-  if (oldestWaitingMatch.length === 0) {
-    // значит нет ожидающих матчей
-    return null;
-  }
-
-  //парсим его матчАйди (в редисе они в виде списка вроде бы)
-  const matchId = oldestWaitingMatch[0];
-  const lockKey = `waiting:match:${matchId}:lock`;
-
-  // локаем данный матч
-  const locked = await rC.set(lockKey, "1", { NX: true, PX: 3000 });
+  const lockKey = `waiting:match:${matchId}:join`;
+  const lockValue = `${Date.now()}:${playerId}`;
+  
+  // Ставим lock на присоединение к конкретному матчу
+  const locked = await rC.set(lockKey, lockValue, { 
+    NX: true,  // Только если ключа нет
+    PX: 1000   // TTL: 1000ms (1 секунда) для блокировки матча на время присоединения
+  });
+  
   if (!locked) {
-    // значит кто то уже создал лок на этот матч быстрей
-    return null;
+    return null; // Кто-то уже пытается присоединиться к этому матчу
   }
 
   try {
-    // если анти кейсы прошли, то берем этот матч из редис
+    // Получаем данные матча из Redis
     const raw = await rC.get(`waiting:match:${matchId}`);
     if (!raw) {
-      // если вдруг его уже не стало по какой то причине - то удаляем его из вейтинг на этом уровне
-      await rC.zRem("waiting:matches", matchId);
+      // Если матч не найден, удаляем его из списка ожидания
+      await rC.zRem("waiting:matches", matchId).catch(() => {});
       return null;
     }
 
-    // парсим данные полученного матча с редиса
     const match = JSON.parse(raw);
-
-    if (match.status !== "waiting") {
-      // если матч уже актив (не вейтинг) по какой то причине - то скипаем
+    
+    // Проверяем условия присоединения
+    if (match.status !== "waiting" || 
+        match.players.length >= 2 || 
+        Date.now() - match.createdAt > 30000) {  // Матч старше 30 секунд
+      
+      // Быстрый откат - обрабатываем невалидный матч
+      if (match.status === "waiting" && match.players.length < 2) {
+        // Возвращаем матч в список ожидания только если он свежий (< 5 секунд)
+        if (Date.now() - match.createdAt < 5000) {
+          await rC.zAdd("waiting:matches", {
+            score: Date.now(),  // Обновляем время для приоритета
+            value: match.id,
+          });
+        } else {
+          // Старый матч (> 5 секунд) - удаляем навсегда
+          const multi = rC.multi();
+          multi.del(`waiting:match:${matchId}`);
+          multi.zRem("waiting:matches", matchId);
+          await multi.exec();
+        }
+      }
       return null;
     }
 
-    // в случае если вейтинг, то =>
+    // Присоединяем игрока к матчу
     match.players.push(playerId);
     match.balances[playerId] = 0;
     match.status = "active";
 
     const readyMatch = await startAndSaveMatch(match);
 
-    // сохраняем матч в активные в редис
-    await rC.set(`match:${match.id}`, JSON.stringify(readyMatch));
-    // удаляем матч из ожидающих в редис
-    await rC.zRem("waiting:matches", matchId);
+    // Атомарно сохраняем изменения
+    const multi = rC.multi();
+    
+    // Сохраняем активный матч с TTL 24 часа (86400 секунд)
+    // Важно: даже активные матчи удалятся через сутки для очистки памяти
+    multi.set(`match:${match.id}`, JSON.stringify(readyMatch), {
+      EX: 86400  // TTL: 86400 секунд = 24 часа для активных матчей
+    });
+    
+    // Удаляем ожидающий матч (он больше не нужен)
+    multi.del(`waiting:match:${matchId}`);
+    
+    // Удаляем матч из списка ожидающих
+    multi.zRem("waiting:matches", matchId);
+    
+    await multi.exec();
 
-    // возвращаем  объект собраного матча
     return readyMatch;
+  } catch (error) {
+    console.error(`Error joining match ${matchId}:`, error);
+    return null;
   } finally {
-    // удаляем все возможные локи в данной сессии
-    await rC.del(lockKey);
+    // Всегда снимаем lock на присоединение (даже если была ошибка)
+    await rC.del(lockKey).catch(() => {});
   }
 }
