@@ -1,21 +1,21 @@
-// Поиск и создание пары для игры
+/* Поиск и создание пары для игры */
 
 import { Match } from "../structures/match.struct";
 import { generateId } from "../utils/idGenerate";
 import { rC } from "../storage/activeStorage";
 import { startAndSaveMatch } from "./match.service";
 
-/* тайп для луаскрипта ниже */
+/* Тип для луа скрипта ниже */
 type MatchAction =
   | { type: "join"; matchId: string }  
   | { type: "create" }
   | { type: "wait" };
 
-/* луа скрипт для работы с редисом  */
+/* Луа скрипт для работы с редисом  */
 async function getMatchAction(): Promise<MatchAction> {
   const result = await rC.eval(
     `
-    -- 1. Сначала ищем матчи для присоединения (более агрессивно)
+    -- 1. Сначала ищем матчи для присоединения
     local matchIds = redis.call("ZRANGE", "waiting:matches", 0, 9)  -- Смотрим 10 матчей
     
     if matchIds and #matchIds > 0 then
@@ -33,7 +33,7 @@ async function getMatchAction(): Promise<MatchAction> {
             ARGV[1],
             "NX",
             "PX",
-            200  -- TTL: 200ms для быстрой блокировки попытки присоединения
+            200  -- TTL: 200ms 
           )
           
           if lock then
@@ -61,7 +61,7 @@ async function getMatchAction(): Promise<MatchAction> {
       ARGV[1],
       "NX",
       "PX",
-      500  -- TTL: 500ms lock на создание матча (короткий, чтобы не блокировать других)
+      500  -- TTL: 500ms lock на создание матча
     )
     
     if lock then
@@ -93,13 +93,13 @@ async function getMatchAction(): Promise<MatchAction> {
   return { type: "wait" };
 }
 
-/* основной цикл матч мейкинга */
+/* Основная функция матч мейкинга, подключиться к матчу, либо создать свой */
 export async function joinOrCreateMatch(
   playerId: string,
   bid: number,
 ): Promise<Match> {
-  const maxAttempts = 200; // Максимальное количество попыток найти/создать матч
-  const initialWaitTime = 20; // Начальная задержка между попытками в миллисекундах
+  const maxAttempts = 200; 
+  const initialWaitTime = 20; 
   
   let totalWaitTime = 0;
   let lastActionType = '';
@@ -161,7 +161,7 @@ export async function joinOrCreateMatch(
     }
   }
   
-  // Последняя попытка - пробуем создать матч любой ценой перед ошибкой
+  // Последняя попытка - пробуем создать матч ласт шанс перед ошибкой
   try {
     console.log(`Player ${playerId} last resort create`);
     const match = await createWaitingMatch(playerId, bid);
@@ -172,12 +172,12 @@ export async function joinOrCreateMatch(
   }
 }
 
-/* создание ожидающего матча */
+/* Создание ожидающего матча */
 export async function createWaitingMatch(
   playerId: string,
   bid: number,
 ): Promise<Match> {
-  // Проверяем, не создает ли уже этот игрок матч (защита от дублирования)
+  // Проверяем, не создает ли уже этот игрок матч 
   const playerLockKey = `player:creating:${playerId}`;
   const playerLocked = await rC.set(playerLockKey, "1", { 
     NX: true,  // Только если ключа нет
@@ -202,6 +202,7 @@ export async function createWaitingMatch(
       board: [],
       balances: { [playerId]: 0 },
       status: "waiting",
+      turnStartedAt:0
     };
 
     // Используем транзакцию для атомарного сохранения
@@ -215,7 +216,7 @@ export async function createWaitingMatch(
     
     // Добавляем ID матча в отсортированный список ожидающих
     multi.zAdd("waiting:matches", {
-      score: Date.now(),  // Время создания как score для сортировки
+      score: Date.now(),  // Время создания = score для сортировки
       value: match.id,
     });
     
@@ -231,7 +232,7 @@ export async function createWaitingMatch(
   }
 }
 
-/* подключение к матчу */
+/* Подключение к матчу */
 export async function joinWaitingMatch(
   playerId: string,
   matchId: string,

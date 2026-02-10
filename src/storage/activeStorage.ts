@@ -1,4 +1,4 @@
-//activeStorage
+/* Активная память, Redis  */
 
 import { createClient } from "redis";
 import { Match } from "../structures/match.struct";
@@ -9,21 +9,19 @@ rC.connect().catch((err) => {
   console.error("Redis connection error", err);
 });
 
-/* типы для респонсов */
+/* Типы для респонсов */
 export type SaveResult = { ok: true } | { ok: false; error: unknown };
 
-export type GetResult =
-  | { ok: true; match: Match }
-  | { ok: false; error: any };
+export type GetResult = { ok: true; match: Match } | { ok: false; error: any };
 
 export type DeleteResult =
   | { ok: true; deleted: boolean }
   | { ok: false; error: unknown };
 
-/* неважная мини утилка */
+/* Для синтаксиса */
 const matchKey = (id: Match["id"]) => `match:${id}`;
 
-/* сохранить в активной памяти игру */
+/* Сохранить в активной памяти игру */
 export async function activeSave(match: Match): Promise<SaveResult> {
   try {
     await rC.set(matchKey(match.id), JSON.stringify(match));
@@ -33,7 +31,7 @@ export async function activeSave(match: Match): Promise<SaveResult> {
   }
 }
 
-/* взять из активной памяти игру */
+/* Взять из активной памяти игру */
 export async function activeGet(matchId: string): Promise<GetResult> {
   try {
     const data = await rC.get(matchKey(matchId));
@@ -43,14 +41,14 @@ export async function activeGet(matchId: string): Promise<GetResult> {
 
     return {
       ok: true,
-      match: JSON.parse(data) as Match, 
+      match: JSON.parse(data) as Match,
     };
   } catch (error) {
     return { ok: false, error };
   }
 }
 
-/* удалить из активной памяти игру */
+/* Удалить из активной памяти игру */
 export async function activeDel(matchId: string): Promise<DeleteResult> {
   try {
     const deleted = (await rC.del(matchKey(matchId))) === 1;
@@ -59,4 +57,3 @@ export async function activeDel(matchId: string): Promise<DeleteResult> {
     return { ok: false, error };
   }
 }
-

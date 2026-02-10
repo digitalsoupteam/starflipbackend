@@ -6,9 +6,7 @@ const PORT = 3000;
 
 const jsonMiddleware = express.json()
 
-// обработка запросов 
+/* обработка запросов */
 app.use(jsonMiddleware)
 app.use("/game", gameRouter)
-
-
 app.listen(PORT)

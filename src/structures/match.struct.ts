@@ -24,6 +24,9 @@ export interface Match {
   balances: Record<string, number>; // балансы игроков
 
   currentTurn?: string;           // чей ход (только при active)
+  lastMoveId?: string;           // новый апдейт, для того, чтобы при дисконнекте не потерять был ли ход или не был
+  turnStartedAt: number;        // новый апдейт,таймштамп хода, чтобы поставить таймлефт под ход
+
   status: 'waiting' | 'active' | 'finished'; //status 
 }
 
