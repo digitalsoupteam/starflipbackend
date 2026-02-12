@@ -3,7 +3,8 @@
 import { Match, Box, MoveResult } from "../structures/match.struct";
 import { randomizePool } from "../utils/random";
 import { hashBoard } from "../utils/boardHash";
-
+import { finishMatch_onContract } from "./contracts/contract.service";
+import { clearActiveMatch } from "./playerMatch.service";
 
 /* делает ход, проверяет validateMove(), прежде, чем ходить, если все ок то делает applyMove(), 
 обновляя данные матча, также проверяет, если все клетки заполнены isGameOver() возвращая статус finished для матча */
@@ -11,7 +12,7 @@ import { hashBoard } from "../utils/boardHash";
 export function makeMove(
   match: Match,
   playerId: string,
-  boxId: number
+  boxId: number,
 ): MoveResult {
   // проверка на ошибку валидации
   const error = validateMove(match, playerId, boxId);
@@ -24,6 +25,8 @@ export function makeMove(
   // если игра закончена обновление статуса матча
   if (isGameOver(updatedMatch)) {
     updatedMatch.status = "finished";
+    updatedMatch.currentTurn = undefined;
+    finalizeMatch(updatedMatch);
   }
 
   return { match: updatedMatch };
@@ -43,7 +46,7 @@ export function createBoard(total: number, count: number): Box[] {
 export function validateMove(
   match: Match,
   playerId: string,
-  boxId: number
+  boxId: number,
 ): string | null {
   //проверяет, если статус матча не active, значит ходить нельзя
   if (match.status !== "active") {
@@ -75,21 +78,20 @@ export function validateMove(
 export function applyMove(
   match: Match,
   playerId: string,
-  boxId: number
+  boxId: number,
 ): Match {
-  const board = match.board.map(box =>
-    box.id === boxId
-      ? { ...box, openedBy: playerId }
-      : box
+  const board = match.board.map((box) =>
+    box.id === boxId ? { ...box, openedBy: playerId } : box,
   );
 
   const balances = {
     ...match.balances,
-    [playerId]: (match.balances[playerId] ?? 0) +
-      (board.find(b => b.id === boxId)!.value),
+    [playerId]:
+      (match.balances[playerId] ?? 0) +
+      board.find((b) => b.id === boxId)!.value,
   };
 
-  const nextPlayer = match.players.find(p => p !== playerId);
+  const nextPlayer = match.players.find((p) => p !== playerId);
 
   return {
     ...match,
@@ -136,4 +138,32 @@ export function getGameResult(match: Match) {
     draw: true,
     balances: match.balances,
   };
+}
+
+async function finalizeMatch(match: Match): Promise<void> {
+  try {
+    // Проверяем что есть onChainId
+    if (!match.onChainId) {
+      throw new Error(`Match ${match.id} no onChainId`);
+    }
+
+    // результат игры для удобства
+    const result = getGameResult(match);
+
+    // балики для ончейн клейма
+    const balances = {
+      [match.players[0]]: match.balances[match.players[0]],
+      [match.players[1]]: match.balances[match.players[1]],
+    };
+
+    // ждем отправку в контракт баликов,
+    await finishMatch_onContract(Number(match.onChainId), balances);
+
+    for (const player of match.players) {
+      await clearActiveMatch(player);
+    }
+  } catch (error) {
+    console.error(`finalise error ${match.id}:`, error);
+    throw error;
+  }
 }

@@ -9,7 +9,9 @@ openedBy?: string // кто открыл клетку
 
 /* структура матча */
 export interface Match {
-  id: string                   // id матча
+  id: string                   // id-шник матча в бекенд системе
+  onChainId?: string,           // id-шникик матча в контракте
+  
   createdAt: number;              // timestamp создания
   creator: string;                // создатель матча (players[0])
 
@@ -26,6 +28,7 @@ export interface Match {
   currentTurn?: string;           // чей ход (только при active)
   lastMoveId?: string;           // новый апдейт, для того, чтобы при дисконнекте не потерять был ли ход или не был
   turnStartedAt: number;        // новый апдейт,таймштамп хода, чтобы поставить таймлефт под ход
+
 
   status: 'waiting' | 'active' | 'finished'; //status 
 }

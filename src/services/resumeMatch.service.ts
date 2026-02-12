@@ -19,27 +19,40 @@ export async function resumeMatch(
     return { ok: false, reason: "no_active_match" };
   }
 
-  const raw = await rC.get(`match:${matchId}`);
+  try {
+    const raw = await rC.get(`match:${matchId}`);
 
-  if (!raw) {
+    if (!raw) {
+      await clearActiveMatch(playerId);
+      return { ok: false, reason: "match_not_found" };
+    }
+
+    let match: Match;
+    try {
+      match = JSON.parse(raw) as Match;
+    } catch (e) {
+      // шибка парсинга JSON - матч сломан, очищаем
+      await clearActiveMatch(playerId);
+      return { ok: false, reason: "match_not_found" };
+    }
+
+    if (match.status === "active") {
+      await saveMatch(match);
+    }
+
+    // если матч теперь finished, очищаем активный матч
+    if (match.status === "finished") {
+      await clearActiveMatch(playerId);
+    }
+
+    return { ok: true, match };
+  } catch (error) {
+    // Любая другая ошибка Redis
+    console.error(`Error resuming match for player ${playerId}:`, error);
     await clearActiveMatch(playerId);
     return { ok: false, reason: "match_not_found" };
   }
-
-  const match = JSON.parse(raw) as Match;
-
-  if (match.status === "active") {
-    await saveMatch(match);
-  }
-
-  // если матч теперь finished, очищаем активный матч
-  if (match.status === "finished") {
-    await clearActiveMatch(playerId);
-  }
-
-  return { ok: true, match };
 }
-
 
 /* Кирилл, пример использования для фронта примерно такой:
 

@@ -3,11 +3,8 @@
 import { Match, MoveResult } from "../structures/match.struct";
 import { createBoard } from "./game.service";
 import { makeMove } from "./game.service";
-import { hashBoard } from "../utils/boardHash";
 import { rC, activeGet, activeSave, GetResult } from "../storage/activeStorage";
 import { setActiveMatch } from "./playerMatch.service";
-import { isTurnTimedOut } from "../utils/match.timeout";
-import { findFirstFreeBox } from "../utils/findFreeBox";
 
 export const TURN_TIMEOUT_MS = 300_000; // 5 минут ТАЙМЛЕФТ хода / рекконнекта
 
@@ -23,11 +20,8 @@ export function startMatch(match: Match): Match {
 
   return {
     ...match,
-    board,
     balances: { [p1]: match.bid, [p2]: match.bid },
     currentTurn,
-    status: "active",
-    boardHash: hashBoard(board),
     turnStartedAt: Date.now(),
   };
 }
@@ -66,7 +60,7 @@ export async function getMatch(matchId: string): Promise<GetResult> {
     if (!data) return { ok: false, error: "not_found" }; // если нет данных, ok: false
     return { ok: true, match: JSON.parse(data) as Match }; // тут match точно есть
   } catch (error) {
-    return { ok: false, error };
+    return { ok: false, error: "storage_error" };
   }
 }
 
@@ -96,11 +90,10 @@ export async function moveInMatch(
     const res = await getMatch(matchId);
 
     if (!res.ok) {
-      return { error: "storage error" };
-    }
-
-    if (!res.match) {
-      return { error: "match not found" };
+      if (res.error === "not_found") {
+        return { error: "match not found" };
+      }
+      return { error: "storage error" }; 
     }
 
     const match = res.match;

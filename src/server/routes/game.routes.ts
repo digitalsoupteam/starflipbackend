@@ -1,43 +1,61 @@
 import { Router } from "express";
 import { joinOrCreateMatch } from "../../services/matchMaking.service";
-import { getMatch, moveInMatch, startAndSaveMatch } from "../../services/match.service";
+import { getMatch, moveInMatch } from "../../services/match.service";
 import { getGameResult } from "../../services/game.service";
 import { resumeMatch } from "../../services/resumeMatch.service";
-import { clearActiveMatch } from "../../services/playerMatch.service";
 
-/* Роутинг для всей игры */
 export const gameRouter = Router();
 
-/* Начать поиск матча */
+/* Начать игру */
 gameRouter.post("/join", async (req, res) => {
   try {
-    const { playerId, bid } = req.body;
+    const { playerId, bid, token } = req.body;
     
-    if (!playerId || !bid) {
-      return res.status(400).json({ error: "playerId and bid are required" });
+    if (!playerId || !bid || !token) {
+      return res.status(400).json({ 
+        error: "playerId, bid and token are required" 
+      });
     }
 
-    const match = await joinOrCreateMatch(playerId, bid);
+    const match = await joinOrCreateMatch(playerId, Number(bid), token);
+    
     res.json({
       message: match.status === "waiting" ? "waiting for opponent" : "match started",
-      match
+      match: {
+        matchId: match.id,
+        status: match.status,
+        players: match.players,
+        currentTurn: match.currentTurn,
+        balances: match.balances,
+        turnStartedAt: match.turnStartedAt,
+        boardHash: match.boardHash,
+        lastMoveId: match.lastMoveId,
+        board: match.status === "active" 
+          ? match.board.map(box => ({
+              id: box.id,
+              openedBy: box.openedBy,
+              value: box.openedBy ? box.value : undefined
+            }))
+          : match.status === "waiting" ? [] : match.board
+      }
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-/* Получить информацию о матче */
+/* Получить информацию о матче (активном матче в реддиссе ) */
 gameRouter.get("/match/:matchId", async (req, res) => {
   try {
     const { matchId } = req.params;
     const result = await getMatch(matchId);
 
-    if (!result.ok) {
+    if (!result.ok || !result.match) {
       return res.status(404).json({ error: "match not found" });
     }
 
-    const match = result.match!;
+    const match = result.match;
+    
     const response: any = {
       matchId: match.id,
       status: match.status,
@@ -46,24 +64,18 @@ gameRouter.get("/match/:matchId", async (req, res) => {
       balances: match.balances,
       turnStartedAt: match.turnStartedAt,
       boardHash: match.boardHash,
-      lastMoveId: match.lastMoveId
+      lastMoveId: match.lastMoveId,
+      board: match.status === "active"
+        ? match.board.map(box => ({
+            id: box.id,
+            openedBy: box.openedBy,
+            value: box.openedBy ? box.value : undefined
+          }))
+        : match.board
     };
 
-    // Если матч активен, не показываем содержимое закрытых ячеек
-    if (match.status === "active") {
-      response.board = match.board.map(box => ({
-        id: box.id,
-        openedBy: box.openedBy,
-        value: box.openedBy ? box.value : undefined // Скрываем значение закрытых ячеек
-      }));
-    } else {
-      response.board = match.board; // Показываем всё для завершенных матчей
-    }
-
-    // Если игра завершена, добавляем результат
     if (match.status === "finished") {
-      const result = getGameResult(match);
-      response.result = result;
+      response.result = getGameResult(match);
     }
 
     res.json(response);
@@ -77,15 +89,9 @@ gameRouter.post("/move", async (req, res) => {
   try {
     const { matchId, playerId, boxId, clientMoveId } = req.body;
 
-    if (!matchId || !playerId || boxId === undefined) {
+    if (!matchId || !playerId || boxId === undefined || !clientMoveId) {
       return res.status(400).json({ 
-        error: "matchId, playerId and boxId are required" 
-      });
-    }
-
-    if (!clientMoveId) {
-      return res.status(400).json({
-        error: "clientMoveId is required for idempotency"
+        error: "matchId, playerId, boxId and clientMoveId are required" 
       });
     }
 
@@ -100,30 +106,30 @@ gameRouter.post("/move", async (req, res) => {
       return res.status(400).json({ error: result.error });
     }
 
+    if (!result.match) {
+      return res.status(404).json({ error: "match not found" });
+    }
+
     const response: any = {
       message: "move successful",
       match: {
-        matchId: result.match!.id,
-        status: result.match!.status,
-        currentTurn: result.match!.currentTurn,
-        balances: result.match!.balances,
-        turnStartedAt: result.match!.turnStartedAt,
-        boardHash: result.match!.boardHash,
-        lastMoveId: result.match!.lastMoveId
+        matchId: result.match.id,
+        status: result.match.status,
+        currentTurn: result.match.currentTurn,
+        balances: result.match.balances,
+        turnStartedAt: result.match.turnStartedAt,
+        boardHash: result.match.boardHash,
+        lastMoveId: result.match.lastMoveId,
+        board: result.match.board.map(box => ({
+          id: box.id,
+          openedBy: box.openedBy,
+          value: box.openedBy ? box.value : undefined
+        }))
       }
     };
 
-    // Показываем обновленную доску (только открытые ячейки) 
-    response.match.board = result.match!.board.map(box => ({
-      id: box.id,
-      openedBy: box.openedBy,
-      value: box.openedBy ? box.value : undefined
-    }));
-
-    // Если игра завершена, добавляем результат 
-    if (result.match!.status === "finished") {
-      const gameResult = getGameResult(result.match!);
-      response.result = gameResult;
+    if (result.match.status === "finished") {
+      response.result = getGameResult(result.match);
     }
 
     res.json(response);
@@ -132,30 +138,29 @@ gameRouter.post("/move", async (req, res) => {
   }
 });
 
-/* Получить результаты игры */
+/* Получить результаты матча (в конце матча) */
 gameRouter.get("/result/:matchId", async (req, res) => {
   try {
     const { matchId } = req.params;
     const result = await getMatch(matchId);
 
-    if (!result.ok) {
+    if (!result.ok || !result.match) {
       return res.status(404).json({ error: "match not found" });
     }
 
-    const match = result.match!;
+    const match = result.match;
     
     if (match.status !== "finished") {
       return res.status(400).json({ error: "match is not finished yet" });
     }
 
-    const gameResult = getGameResult(match);
-    res.json(gameResult);
+    res.json(getGameResult(match));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-/* Восстановить сессию игрока (реконнект) */
+/* Восстановить матч из реддис по id (address) = recconnect */
 gameRouter.post("/resume", async (req, res) => {
   try {
     const { playerId } = req.body;
@@ -174,6 +179,7 @@ gameRouter.post("/resume", async (req, res) => {
     }
 
     const match = result.match;
+    
     const response: any = {
       message: match.status === "finished" ? "match finished" : "session restored",
       match: {
@@ -184,87 +190,22 @@ gameRouter.post("/resume", async (req, res) => {
         balances: match.balances,
         turnStartedAt: match.turnStartedAt,
         boardHash: match.boardHash,
-        lastMoveId: match.lastMoveId
+        lastMoveId: match.lastMoveId,
+        board: match.status === "active"
+          ? match.board.map(box => ({
+              id: box.id,
+              openedBy: box.openedBy,
+              value: box.openedBy ? box.value : undefined
+            }))
+          : match.board
       }
     };
 
-    // Если матч активен, не показываем содержимое закрытых ячеек
-    if (match.status === "active") {
-      response.match.board = match.board.map(box => ({
-        id: box.id,
-        openedBy: box.openedBy,
-        value: box.openedBy ? box.value : undefined
-      }));
-    } else {
-      response.match.board = match.board;
-      // Если матч завершен, добавляем результат
-      if (match.status === "finished") {
-        const gameResult = getGameResult(match);
-        response.result = gameResult;
-      }
+    if (match.status === "finished") {
+      response.result = getGameResult(match);
     }
 
     res.json(response);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/* Старт матча вручную (для тестирования) */
-gameRouter.post("/start-test", async (req, res) => {
-  try {
-    const { match } = req.body;
-    
-    if (!match) {
-      return res.status(400).json({ error: "match object is required" });
-    }
-
-    // Проверяем, что есть 2 игрока для старта
-    if (match.players.length !== 2) {
-      return res.status(400).json({ error: "Need 2 players to start" });
-    }
-
-    const startedMatch = await startAndSaveMatch(match);
-    
-    res.json({
-      message: "match started",
-      match: startedMatch
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/* Проверить статус таймера хода */
-gameRouter.get("/check-timeout/:matchId", async (req, res) => {
-  try {
-    const { matchId } = req.params;
-    const result = await getMatch(matchId);
-
-    if (!result.ok) {
-      return res.status(404).json({ error: "match not found" });
-    }
-
-    const match = result.match!;
-    
-    if (match.status !== "active" || !match.currentTurn || !match.turnStartedAt) {
-      return res.json({ 
-        timeout: false, 
-        message: "Match not in active turn state" 
-      });
-    }
-
-    const now = Date.now();
-    const timeSinceTurnStart = now - match.turnStartedAt;
-    const TURN_TIMEOUT_MS = 300_000; // 5 минут
-    
-    res.json({
-      timeout: timeSinceTurnStart > TURN_TIMEOUT_MS,
-      timeSinceTurnStart,
-      turnStartedAt: match.turnStartedAt,
-      currentTurn: match.currentTurn,
-      timeLeft: Math.max(0, TURN_TIMEOUT_MS - timeSinceTurnStart)
-    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
