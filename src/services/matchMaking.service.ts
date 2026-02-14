@@ -4,7 +4,7 @@ import { Match } from "../structures/match.struct";
 import { generateId } from "../utils/idGenerate";
 import { rC } from "../storage/activeStorage";
 import { startAndSaveMatch } from "./match.service";
-import { createMatch_onContract } from "./contracts/contract.service";
+import { createMatch_onContract} from "./contracts/contract.service";
 import { hashBoard } from "../utils/boardHash";
 import { createBoard } from "./game.service";
 
@@ -309,14 +309,14 @@ export async function joinWaitingMatch(
       const onChainId = await createMatch_onContract(
         match.players[0],
         playerId,
-        token,
+        token, 
         boardHash,
       );
 
       match.onChainId = onChainId;
     } catch (error) {
       console.error("Ошибка создания матча:", error);
-      throw error; // обязательно прерываем выполнение
+      throw error; 
     }
 
     match.players.push(playerId);

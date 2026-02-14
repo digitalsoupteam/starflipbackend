@@ -11,7 +11,8 @@ openedBy?: string // кто открыл клетку
 export interface Match {
   id: string                   // id-шник матча в бекенд системе
   onChainId?: string,           // id-шникик матча в контракте
-  
+
+  token?: string                   // ETH
   createdAt: number;              // timestamp создания
   creator: string;                // создатель матча (players[0])
 
