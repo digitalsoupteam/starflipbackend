@@ -1,7 +1,6 @@
 // Запуск матча, Сохранение, Примнение ходов
 
 import { Match, MoveResult } from "../structures/match.struct";
-import { createBoard } from "./game.service";
 import { makeMove } from "./game.service";
 import { rC, activeGet, activeSave, GetResult } from "../storage/activeStorage";
 import { setActiveMatch } from "./playerMatch.service";
@@ -15,12 +14,11 @@ export function startMatch(match: Match): Match {
   }
 
   const [p1, p2] = match.players;
-  const board = createBoard(match.total, match.count);
   const currentTurn = Math.random() < 0.5 ? p1 : p2;
 
   return {
     ...match,
-    balances: { [p1]: match.bid, [p2]: match.bid },
+    balances: { [p1]: 0, [p2]: 0 },
     currentTurn,
     turnStartedAt: Date.now(),
   };
@@ -93,7 +91,7 @@ export async function moveInMatch(
       if (res.error === "not_found") {
         return { error: "match not found" };
       }
-      return { error: "storage error" }; 
+      return { error: "storage error" };
     }
 
     const match = res.match;

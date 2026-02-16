@@ -140,24 +140,23 @@ export function getGameResult(match: Match) {
   };
 }
 
-async function finalizeMatch(match: Match): Promise<void> {
+export async function finalizeMatch(match: Match): Promise<void> {
   try {
-    // Проверяем что есть onChainId
     if (!match.onChainId) {
       throw new Error(`Match ${match.id} no onChainId`);
     }
 
-    // результат игры для удобства
-    const result = getGameResult(match);
+    const balances: { [player: string]: bigint } = {};
 
-    // балики для ончейн клейма
-    const balances = {
-      [match.players[0]]: match.balances[match.players[0]],
-      [match.players[1]]: match.balances[match.players[1]],
-    };
+    for (const addr of match.players) {
+      balances[addr] = BigInt(match.balances[addr] ?? 0);
+    }
 
-    // ждем отправку в контракт баликов,
-    await finishMatch_onContract(Number(match.onChainId), balances);
+    await finishMatch_onContract(
+      Number(match.onChainId),
+      balances,
+      BigInt(match.total),
+    );
 
     for (const player of match.players) {
       await clearActiveMatch(player);

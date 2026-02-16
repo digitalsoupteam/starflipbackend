@@ -45,52 +45,45 @@ export async function createMatch_onContract(
 
   return Number(event?.args[0]); // айдишник матча в контакте (помещаем в обьект)
 }
-/* завершение матч с учетом хауседж + логи */
+
+/* завершаем матч */
 export async function finishMatch_onContract(
-  onChainId: number,
-  balances: { [playerAddress: string]: number | bigint },
+  matchId: number,
+  balances: { [playerAddress: string]: bigint },
+  total: bigint,
 ): Promise<void> {
-  console.log("=== finishMatch_onContract start ===");
-  console.log("onChainId:", onChainId);
 
-  // Получаем порядок игроков
-  const matchInfo = await contract.getMatchInfo(onChainId);
-  const [player1, player2] = matchInfo.players;
-  console.log("Players:", player1, player2);
+  const houseEdge: bigint = await contract.houseEdge();
+  const maxHouse = (total * houseEdge) / 100n;
 
-  if (!balances[player1] || !balances[player2]) {
-    throw new Error(`Balances missing for players`);
+  const players = Object.keys(balances);
+
+  if (players.length !== 2) {
+    throw new Error("Invalid balances length");
   }
 
-  // Берем выплаты в BigInt
-  let payout1 = BigInt(balances[player1]);
-  let payout2 = BigInt(balances[player2]);
-  console.log("Original payouts:", payout1.toString(), payout2.toString());
+  const score1 = balances[players[0]] ?? 0n;
+  const score2 = balances[players[1]] ?? 0n;
+  const scoreSum = score1 + score2;
 
-  // Получаем houseEdge с контракта
-  const currentHouseEdge = BigInt(await contract.houseEdge());
-  console.log("Current houseEdge (%):", currentHouseEdge.toString());
+  let payout1: bigint = 0n;
+  let payout2: bigint = 0n;
 
-  // Считаем pot после houseEdge
-  const total = payout1 + payout2;
-  const potAfterHouse = (total * (100n - currentHouseEdge)) / 100n;
-  console.log("Pot after houseEdge:", potAfterHouse.toString());
+  const distributable = total - maxHouse;
 
-  // Если сумма выплат больше чем potAfterHouse, масштабируем пропорционально
-  const sumPayouts = payout1 + payout2;
-  if (sumPayouts > potAfterHouse && sumPayouts > 0n) {
-    const ratio = (potAfterHouse * 1_000_000n) / sumPayouts; // умножаем на миллион для точности
-    payout1 = (payout1 * ratio) / 1_000_000n;
-    payout2 = (payout2 * ratio) / 1_000_000n;
-    console.log("Adjusted payouts:", payout1.toString(), payout2.toString());
+  if (scoreSum === 0n) {
+    payout1 = distributable / 2n;
+    payout2 = distributable - payout1;
   } else {
-    console.log("No adjustment needed for payouts");
+    payout1 = (distributable * score1) / scoreSum;
+    payout2 = distributable - payout1;
   }
 
-  // Отправляем на контракт
-  console.log("Sending finishMatch transaction...");
-  const tx = await contract.finishMatch(onChainId, payout1, payout2);
-  const receipt = await tx.wait();
-  console.log("Transaction hash:", receipt.transactionHash);
+  const tx = await contract.finishMatch(
+    matchId,
+    payout1,
+    payout2,
+  );
 
+  await tx.wait();
 }

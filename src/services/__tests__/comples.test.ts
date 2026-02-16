@@ -51,7 +51,6 @@ describe(" ТЕСТЫ ИГРЫ", () => {
     await rC.quit();
   });
 
-
   test("базовый сценарий: 2 игрока создают матч и делают ход", async () => {
     const player1 = `player1_${Date.now()}`;
     const player2 = `player2_${Date.now()}`;
@@ -83,7 +82,6 @@ describe(" ТЕСТЫ ИГРЫ", () => {
     console.log(`Матч ${match2!.id} создан, ход сделан`);
   });
 
-
   test("10 игроков последовательно создают 5 матчей", async () => {
     const PLAYER_COUNT = 10;
     const players = Array.from(
@@ -114,7 +112,6 @@ describe(" ТЕСТЫ ИГРЫ", () => {
 
     console.log(`Последовательное создание: ${uniqueMatches.size} матчей`);
   });
-
 
   test("стресс-тест: 20 игроков параллельно ищут матчи", async () => {
     const PLAYER_COUNT = 20;
@@ -185,7 +182,6 @@ describe(" ТЕСТЫ ИГРЫ", () => {
     );
   }, 15000);
 
-
   test("полный игровой цикл: 2 игрока завершают матч ровно за 12 ходов", async () => {
     const player1 = `game_player1_${Date.now()}`;
     const player2 = `game_player2_${Date.now()}`;
@@ -225,6 +221,10 @@ describe(" ТЕСТЫ ИГРЫ", () => {
       `move_final_${Date.now()}`,
     );
 
+    Object.entries(finalMove.match!.balances).forEach(([key, value]) => {
+      console.log(`БАЛАНСЫ ИГРОКОВ ПОСЛЕ ИГРЫ: ${key}: ${value}`);
+    });
+
     expect(finalMove.error).toBeUndefined();
     expect(finalMove.match!.status).toBe("finished");
     expect(finalMove.match!.currentTurn).toBeUndefined();
@@ -250,7 +250,6 @@ describe(" ТЕСТЫ ИГРЫ", () => {
     );
   }, 10000);
 
-
   test("TTL: ожидающие матчи имеют TTL 300 секунд", async () => {
     const playerId = `ttl_waiting_${Date.now()}`;
 
@@ -268,7 +267,6 @@ describe(" ТЕСТЫ ИГРЫ", () => {
 
     console.log(` TTL ожидающего матча: ${ttlNumber}с`);
   });
-
 
   test("TTL: активные матчи имеют TTL 86400 секунд", async () => {
     const player1 = `ttl_active1_${Date.now()}`;
@@ -288,7 +286,6 @@ describe(" ТЕСТЫ ИГРЫ", () => {
 
     console.log(`TTL активного матча: ${ttlNumber}с`);
   });
-
 
   test("TTL: locks имеют короткий TTL", async () => {
     const playerId = `ttl_lock_${Date.now()}`;
@@ -317,7 +314,6 @@ describe(" ТЕСТЫ ИГРЫ", () => {
 
     console.log(`lock TTL: ${ttlNumber}с, Trylock TTL: ${tryLockMs}мс`);
   });
-
 
   test("ожидающий матч удаляется при активации", async () => {
     const player1 = `cleanup1_${Date.now()}`;
@@ -349,7 +345,6 @@ describe(" ТЕСТЫ ИГРЫ", () => {
 
     console.log(`Матч ${match.id} успешно активирован, waiting удален`);
   });
-
 
   test("идемпотентность: повторный clientMoveId не делает второй ход", async () => {
     const player1 = `idem1_${Date.now()}`;
@@ -388,7 +383,6 @@ describe(" ТЕСТЫ ИГРЫ", () => {
 
     console.log(`Повторный ход не засчитан Идемпотентено!`);
   });
-
 
   test("нельзя ходить дважды подряд", async () => {
     const player1 = `turn1_${Date.now()}`;
@@ -431,7 +425,6 @@ describe(" ТЕСТЫ ИГРЫ", () => {
     console.log(`Очередность ходов работает правильно`);
   });
 
-  
   test("производительность: 10 матчей за < 2 секунд", async () => {
     const PLAYER_COUNT = 20; // 10 матчей
     const players = Array.from(

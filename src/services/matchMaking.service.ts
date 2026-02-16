@@ -302,7 +302,7 @@ export async function joinWaitingMatch(
       return null;
     }
 
-    const board = createBoard(match.total, match.count);
+    const board = createBoard(match.bid*2,12)
     const boardHash = hashBoard(board);
 
     try {
