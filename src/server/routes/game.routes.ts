@@ -11,34 +11,38 @@ export const gameRouter = Router();
 gameRouter.post("/join", async (req, res) => {
   try {
     const { playerId, bid, token } = req.body;
-    
     if (!playerId || !bid || !token) {
-      return res.status(400).json({ 
-        error: "playerId, bid and token are required" 
-      });
+      return res
+        .status(400)
+        .json({ error: "playerId, bid and token are required" });
     }
 
     const match = await joinOrCreateMatch(playerId, Number(bid), token);
-    
+
     res.json({
-      message: match.status === "waiting" ? "waiting for opponent" : "match started",
+      message:
+        match.status === "waiting" ? "waiting for opponent" : "match started",
       match: {
         matchId: match.id,
+        onChainId: match.onChainId ?? null,
         status: match.status,
         players: match.players,
-        currentTurn: match.currentTurn,
+        currentTurn: match.currentTurn ?? null,
         balances: match.balances,
         turnStartedAt: match.turnStartedAt,
-        boardHash: match.boardHash,
-        lastMoveId: match.lastMoveId,
-        board: match.status === "active" 
-          ? match.board.map(box => ({
-              id: box.id,
-              openedBy: box.openedBy,
-              value: box.openedBy ? box.value : undefined
-            }))
-          : match.status === "waiting" ? [] : match.board
-      }
+        boardHash: match.boardHash ?? null,
+        lastMoveId: match.lastMoveId ?? null,
+        board:
+          match.status === "active"
+            ? match.board.map((box) => ({
+                id: box.id,
+                openedBy: box.openedBy,
+                value: box.openedBy ? box.value : undefined,
+              }))
+            : match.status === "waiting"
+              ? []
+              : match.board,
+      },
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -49,59 +53,44 @@ gameRouter.post("/join", async (req, res) => {
 gameRouter.get("/match", async (req, res) => {
   try {
     const { playerId } = req.query;
-
     if (!playerId || typeof playerId !== "string") {
-      return res.status(400).json({
-        error: "playerId is required"
-      });
+      return res.status(400).json({ error: "playerId is required" });
     }
 
     const matchId = await getActiveMatch(playerId);
-
-    if (!matchId) {
-      return res.status(404).json({
-        error: "player has no active match"
-      });
-    }
+    if (!matchId)
+      return res.status(404).json({ error: "player has no active match" });
 
     const result = await getMatch(matchId);
-
-    if (!result.ok || !result.match) {
-      return res.status(404).json({
-        error: "match not found"
-      });
-    }
+    if (!result.ok || !result.match)
+      return res.status(404).json({ error: "match not found" });
 
     const match = result.match;
 
-    const response: any = {
+    res.json({
       matchId: match.id,
+      onChainId: match.onChainId ?? null,
       status: match.status,
       players: match.players,
-      currentTurn: match.currentTurn,
+      currentTurn: match.currentTurn ?? null,
       balances: match.balances,
       turnStartedAt: match.turnStartedAt,
-      boardHash: match.boardHash,
-      lastMoveId: match.lastMoveId,
+      boardHash: match.boardHash ?? null,
+      lastMoveId: match.lastMoveId ?? null,
       board:
         match.status === "active"
-          ? match.board.map(box => ({
+          ? match.board.map((box) => ({
               id: box.id,
               openedBy: box.openedBy,
-              value: box.openedBy ? box.value : undefined
+              value: box.openedBy ? box.value : undefined,
             }))
-          : match.board
-    };
-
-    if (match.status === "finished") {
-      response.result = getGameResult(match);
-    }
-
-    res.json(response);
-  } catch (error: any) {
-    res.status(500).json({
-      error: error.message || "internal error"
+          : match.status === "waiting"
+            ? []
+            : match.board,
+      ...(match.status === "finished" ? { result: getGameResult(match) } : {}),
     });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -109,51 +98,46 @@ gameRouter.get("/match", async (req, res) => {
 gameRouter.post("/move", async (req, res) => {
   try {
     const { matchId, playerId, boxId, clientMoveId } = req.body;
-
     if (!matchId || !playerId || boxId === undefined || !clientMoveId) {
-      return res.status(400).json({ 
-        error: "matchId, playerId, boxId and clientMoveId are required" 
+      return res.status(400).json({
+        error: "matchId, playerId, boxId and clientMoveId are required",
       });
     }
 
     const result = await moveInMatch(
-      matchId, 
-      playerId, 
+      matchId,
+      playerId,
       Number(boxId),
-      clientMoveId
+      clientMoveId,
     );
-
-    if (result.error) {
-      return res.status(400).json({ error: result.error });
-    }
-
-    if (!result.match) {
+    if (result.error) return res.status(400).json({ error: result.error });
+    if (!result.match)
       return res.status(404).json({ error: "match not found" });
-    }
 
-    const response: any = {
+    const match = result.match;
+
+    res.json({
       message: "move successful",
       match: {
-        matchId: result.match.id,
-        status: result.match.status,
-        currentTurn: result.match.currentTurn,
-        balances: result.match.balances,
-        turnStartedAt: result.match.turnStartedAt,
-        boardHash: result.match.boardHash,
-        lastMoveId: result.match.lastMoveId,
-        board: result.match.board.map(box => ({
+        matchId: match.id,
+        onChainId: match.onChainId ?? null,
+        status: match.status,
+        players: match.players,
+        currentTurn: match.currentTurn ?? null,
+        balances: match.balances,
+        turnStartedAt: match.turnStartedAt,
+        boardHash: match.boardHash ?? null,
+        lastMoveId: match.lastMoveId ?? null,
+        board: match.board.map((box) => ({
           id: box.id,
           openedBy: box.openedBy,
-          value: box.openedBy ? box.value : undefined
-        }))
-      }
-    };
-
-    if (result.match.status === "finished") {
-      response.result = getGameResult(result.match);
-    }
-
-    res.json(response);
+          value: box.openedBy ? box.value : undefined,
+        })),
+        ...(match.status === "finished"
+          ? { result: getGameResult(match) }
+          : {}),
+      },
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -164,18 +148,26 @@ gameRouter.get("/result/:matchId", async (req, res) => {
   try {
     const { matchId } = req.params;
     const result = await getMatch(matchId);
-
-    if (!result.ok || !result.match) {
+    if (!result.ok || !result.match)
       return res.status(404).json({ error: "match not found" });
-    }
 
     const match = result.match;
-    
-    if (match.status !== "finished") {
+    if (match.status !== "finished")
       return res.status(400).json({ error: "match is not finished yet" });
-    }
 
-    res.json(getGameResult(match));
+    res.json({
+      matchId: match.id,
+      onChainId: match.onChainId ?? null,
+      status: match.status,
+      players: match.players,
+      currentTurn: match.currentTurn ?? null,
+      balances: match.balances,
+      turnStartedAt: match.turnStartedAt,
+      boardHash: match.boardHash ?? null,
+      lastMoveId: match.lastMoveId ?? null,
+      board: match.board,
+      result: getGameResult(match),
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -185,48 +177,45 @@ gameRouter.get("/result/:matchId", async (req, res) => {
 gameRouter.post("/resume", async (req, res) => {
   try {
     const { playerId } = req.body;
-    
-    if (!playerId) {
+    if (!playerId)
       return res.status(400).json({ error: "playerId is required" });
-    }
 
     const result = await resumeMatch(playerId);
-
-    if (!result.ok) {
-      return res.status(404).json({ 
-        error: "No active match found",
-        reason: result.reason 
-      });
-    }
+    if (!result.ok)
+      return res
+        .status(404)
+        .json({ error: "No active match found", reason: result.reason });
 
     const match = result.match;
-    
-    const response: any = {
-      message: match.status === "finished" ? "match finished" : "session restored",
+
+    res.json({
+      message:
+        match.status === "finished" ? "match finished" : "session restored",
       match: {
         matchId: match.id,
+        onChainId: match.onChainId ?? null,
         status: match.status,
         players: match.players,
-        currentTurn: match.currentTurn,
+        currentTurn: match.currentTurn ?? null,
         balances: match.balances,
         turnStartedAt: match.turnStartedAt,
-        boardHash: match.boardHash,
-        lastMoveId: match.lastMoveId,
-        board: match.status === "active"
-          ? match.board.map(box => ({
-              id: box.id,
-              openedBy: box.openedBy,
-              value: box.openedBy ? box.value : undefined
-            }))
-          : match.board
-      }
-    };
-
-    if (match.status === "finished") {
-      response.result = getGameResult(match);
-    }
-
-    res.json(response);
+        boardHash: match.boardHash ?? null,
+        lastMoveId: match.lastMoveId ?? null,
+        board:
+          match.status === "active"
+            ? match.board.map((box) => ({
+                id: box.id,
+                openedBy: box.openedBy,
+                value: box.openedBy ? box.value : undefined,
+              }))
+            : match.status === "waiting"
+              ? []
+              : match.board,
+        ...(match.status === "finished"
+          ? { result: getGameResult(match) }
+          : {}),
+      },
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
