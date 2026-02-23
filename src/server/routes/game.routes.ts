@@ -3,6 +3,7 @@ import { joinOrCreateMatch } from "../../services/matchMaking.service";
 import { getMatch, moveInMatch } from "../../services/match.service";
 import { getGameResult } from "../../services/game.service";
 import { resumeMatch } from "../../services/resumeMatch.service";
+import { getActiveMatch } from "../../services/playerMatch.service";
 
 export const gameRouter = Router();
 
@@ -44,18 +45,35 @@ gameRouter.post("/join", async (req, res) => {
   }
 });
 
-/* Получить информацию о матче (активном матче в реддиссе ) */
-gameRouter.get("/match/:matchId", async (req, res) => {
+/* Получить активный матч по playerId (кошелек пользователя) */
+gameRouter.get("/match", async (req, res) => {
   try {
-    const { matchId } = req.params;
+    const { playerId } = req.query;
+
+    if (!playerId || typeof playerId !== "string") {
+      return res.status(400).json({
+        error: "playerId is required"
+      });
+    }
+
+    const matchId = await getActiveMatch(playerId);
+
+    if (!matchId) {
+      return res.status(404).json({
+        error: "player has no active match"
+      });
+    }
+
     const result = await getMatch(matchId);
 
     if (!result.ok || !result.match) {
-      return res.status(404).json({ error: "match not found" });
+      return res.status(404).json({
+        error: "match not found"
+      });
     }
 
     const match = result.match;
-    
+
     const response: any = {
       matchId: match.id,
       status: match.status,
@@ -65,13 +83,14 @@ gameRouter.get("/match/:matchId", async (req, res) => {
       turnStartedAt: match.turnStartedAt,
       boardHash: match.boardHash,
       lastMoveId: match.lastMoveId,
-      board: match.status === "active"
-        ? match.board.map(box => ({
-            id: box.id,
-            openedBy: box.openedBy,
-            value: box.openedBy ? box.value : undefined
-          }))
-        : match.board
+      board:
+        match.status === "active"
+          ? match.board.map(box => ({
+              id: box.id,
+              openedBy: box.openedBy,
+              value: box.openedBy ? box.value : undefined
+            }))
+          : match.board
     };
 
     if (match.status === "finished") {
@@ -80,7 +99,9 @@ gameRouter.get("/match/:matchId", async (req, res) => {
 
     res.json(response);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      error: error.message || "internal error"
+    });
   }
 });
 
