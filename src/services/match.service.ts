@@ -110,7 +110,7 @@ export async function moveInMatch(
       return { error: "its not your turn" };
     }
 
-    const result = makeMove(match, playerId, boxId);
+    const result = await makeMove(match, playerId, boxId);
 
     if (!result.error && result.match) {
       result.match.lastMoveId = clientMoveId;

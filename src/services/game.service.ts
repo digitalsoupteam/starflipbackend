@@ -5,15 +5,16 @@ import { randomizePool } from "../utils/random";
 import { hashBoard } from "../utils/boardHash";
 import { finishMatch_onContract } from "./contracts/contract.service";
 import { clearActiveMatch } from "./playerMatch.service";
+import { rC } from "../storage/activeStorage";
 
 /* делает ход, проверяет validateMove(), прежде, чем ходить, если все ок то делает applyMove(), 
 обновляя данные матча, также проверяет, если все клетки заполнены isGameOver() возвращая статус finished для матча */
 
-export function makeMove(
+export async function makeMove(
   match: Match,
   playerId: string,
   boxId: number,
-): MoveResult {
+): Promise<MoveResult> {
   // проверка на ошибку валидации
   const error = validateMove(match, playerId, boxId);
   if (error) {
@@ -26,7 +27,7 @@ export function makeMove(
   if (isGameOver(updatedMatch)) {
     updatedMatch.status = "finished";
     updatedMatch.currentTurn = undefined;
-    finalizeMatch(updatedMatch);
+    await finalizeMatch(updatedMatch);
   }
 
   return { match: updatedMatch };
@@ -161,6 +162,7 @@ export async function finalizeMatch(match: Match): Promise<void> {
     for (const player of match.players) {
       await clearActiveMatch(player);
     }
+
   } catch (error) {
     console.error(`finalise error ${match.id}:`, error);
     throw error;
