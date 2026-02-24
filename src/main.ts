@@ -1,6 +1,8 @@
 import { onMatchRequested } from './services/contracts/listener';
 import { joinOrCreateMatch } from './services/matchMaking.service';
+import { startServer } from './server/server';
 
+startServer();
 /* включить слушатель , который запустит игру */
 onMatchRequested(async (event) => {
   console.log('event!', event.player);
