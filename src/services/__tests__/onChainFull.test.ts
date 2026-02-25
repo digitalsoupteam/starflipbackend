@@ -105,6 +105,9 @@ describe("Create match → resume → full game onChain flow", () => {
     }
 
     let currentMatch = resume1.match;
+    console.log('Resume1.match:', resume1.match)
+    console.log('Resume2.match:', resume2.match)
+    
     let currentPlayer = currentMatch.currentTurn!;
 
     // 12 ходов
@@ -125,6 +128,7 @@ describe("Create match → resume → full game onChain flow", () => {
     }
 
     console.log("Match finished. Total moves: 12");
+    console.log('balances:', currentMatch.balances)
 
     // Проверяем финальное состояние
     expect(currentMatch.status).toBe("finished");
@@ -135,6 +139,10 @@ describe("Create match → resume → full game onChain flow", () => {
 
     expect(sum).toBe(currentMatch.total);
   });
+
+
+
+
 
   afterAll(async () => {
     // Сначала чистим активные матчи
