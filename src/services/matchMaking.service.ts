@@ -4,7 +4,7 @@ import { Match } from "../structures/match.struct";
 import { generateId } from "../utils/idGenerate";
 import { rC } from "../storage/activeStorage";
 import { startAndSaveMatch } from "./match.service";
-import { createMatch_onContract} from "./contracts/contract.service";
+import { createMatch_onContract } from "./contracts/contract.service";
 import { hashBoard } from "../utils/boardHash";
 import { createBoard } from "./game.service";
 
@@ -302,21 +302,21 @@ export async function joinWaitingMatch(
       return null;
     }
 
-    const board = createBoard(match.bid*2,12)
+    const board = createBoard(match.bid * 2, 12);
     const boardHash = hashBoard(board);
 
     try {
       const onChainId = await createMatch_onContract(
         match.players[0],
         playerId,
-        token, 
+        token,
         boardHash,
       );
 
       match.onChainId = onChainId;
     } catch (error) {
       console.error("Ошибка создания матча:", error);
-      throw error; 
+      throw error;
     }
 
     match.players.push(playerId);
@@ -329,12 +329,6 @@ export async function joinWaitingMatch(
 
     // Атомарно сохраняем изменения
     const multi = rC.multi();
-
-    // Сохраняем активный матч с TTL 24 часа (86400 секунд)
-    // активные матчи удалятся тоже через сутки для очистки памяти потом заменим на автоход
-    multi.set(`match:${match.id}`, JSON.stringify(readyMatch), {
-      EX: 86400, // TTL: 86400 секунд = 24 часа для активных матчей
-    });
 
     // Удаляем ожидающий матч
     multi.del(`waiting:match:${matchId}`);

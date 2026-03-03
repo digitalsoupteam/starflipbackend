@@ -1,11 +1,12 @@
 import { onMatchRequested } from './services/contracts/listener';
 import { joinOrCreateMatch } from './services/matchMaking.service';
 import { startServer } from './server/server';
+import { initRedisExpiredListener } from './services/autoCansel.service';
 import 'dotenv/config';
 
 startServer();
+initRedisExpiredListener().catch(console.error);
 
-/* включить слушатель , который запустит игру */
 onMatchRequested(async (event) => {
   console.log('event!', event.player);
   console.log(`bid: ${event.amount} ${event.token}`);

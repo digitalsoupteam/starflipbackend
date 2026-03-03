@@ -2,7 +2,12 @@
 
 import { Match, MoveResult } from "../structures/match.struct";
 import { makeMove } from "./game.service";
-import { rC, activeGet, activeSave, GetResult } from "../storage/activeStorage";
+import {
+  rC,
+  activeGet,
+  activeSave,
+  GetResult,
+} from "../storage/activeStorage";
 import { setActiveMatch } from "./playerMatch.service";
 
 export const TURN_TIMEOUT_MS = 300_000; // 5 минут ТАЙМЛЕФТ хода / рекконнекта
@@ -29,8 +34,23 @@ export async function startAndSaveMatch(match: Match): Promise<Match> {
   const newMatch = startMatch(match);
 
   const saveRes = await activeSave(newMatch);
+
   if (!saveRes.ok) {
     console.error("Не удалось сохранить матч", saveRes.error);
+  }
+
+  // сейв копии матча для подьема после ТТЛ
+  const matchMetaKey = `matchMeta:${newMatch.id}`;
+  try {
+    await rC.set(
+      matchMetaKey,
+      JSON.stringify({
+        matchId: newMatch.id,
+        onChainId: newMatch.onChainId ?? null,
+      }),
+    );
+  } catch (err) {
+    console.error("Не удалось сохранить matchMeta:", err);
   }
 
   for (const p of newMatch.players) {

@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
 import { PvPGridArtifact } from "./PvPGridABI";
+import { rC } from "../../storage/activeStorage";
 import "dotenv/config";
 
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
@@ -52,7 +53,6 @@ export async function finishMatch_onContract(
   balances: { [playerAddress: string]: bigint },
   total: bigint,
 ): Promise<void> {
-
   const houseEdge: bigint = await contract.houseEdge();
   const maxHouse = (total * houseEdge) / 100n;
 
@@ -79,11 +79,39 @@ export async function finishMatch_onContract(
     payout2 = distributable - payout1;
   }
 
-  const tx = await contract.finishMatch(
-    matchId,
-    payout1,
-    payout2,
-  );
+  const tx = await contract.finishMatch(matchId, payout1, payout2);
 
   await tx.wait();
+}
+
+/* отмена матча с возвратом средств если хакончился TTL активного матча  */
+export async function cancelMatch_onContract(matchId: string) {
+  try {
+    const metaRaw = await rC.get(`matchMeta:${matchId}`);
+
+    if (!metaRaw) {
+      console.log(`matchMeta для ${matchId} не найден`);
+      return;
+    }
+
+    const meta = JSON.parse(metaRaw);
+    const onChainId = meta.onChainId;
+
+    if (!onChainId) {
+      console.log(`Матч ${matchId} не имеет onChainId`);
+      return;
+    }
+
+    const tx = await contract.cancelMatch(onChainId);
+    console.log(`Транзакция отправлена: ${tx.hash}`);
+
+    await tx.wait();
+    console.log(`Матч ${matchId} отменен на контракте`);
+    
+    await rC.del(`matchMeta:${matchId}`);
+    console.log(`matchMeta:${matchId} удален из Redis`);
+
+  } catch (error) {
+    console.error("Ошибка cancelMatch_onContract:", error);
+  }
 }

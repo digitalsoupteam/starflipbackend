@@ -24,7 +24,9 @@ const matchKey = (id: Match["id"]) => `match:${id}`;
 /* Сохранить в активной памяти игру */
 export async function activeSave(match: Match): Promise<SaveResult> {
   try {
-    await rC.set(matchKey(match.id), JSON.stringify(match));
+    await rC.set(matchKey(match.id), JSON.stringify(match), {
+      EX: 7200,
+    });
     return { ok: true };
   } catch (error) {
     return { ok: false, error };
