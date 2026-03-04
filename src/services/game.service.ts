@@ -27,6 +27,21 @@ export async function makeMove(
   if (isGameOver(updatedMatch)) {
     updatedMatch.status = "finished";
     updatedMatch.currentTurn = undefined;
+
+    const matchMetaKey = `matchMeta:${updatedMatch.id}`;
+    try {
+      await rC.set(
+        matchMetaKey,
+        JSON.stringify({
+          matchId: updatedMatch.id,
+          onChainId: updatedMatch.onChainId ?? null,
+          status: updatedMatch.status,
+        }),
+      );
+    } catch (err) {
+      console.error("Не удалось обновить matchMeta:", err);
+    }
+
     await finalizeMatch(updatedMatch);
   }
 
@@ -160,9 +175,14 @@ export async function finalizeMatch(match: Match): Promise<void> {
     );
 
     for (const player of match.players) {
+      console.log("player need be cleaned",player)
       await clearActiveMatch(player);
     }
 
+    await rC.del(`match:${match.id}`);
+    await rC.del(`matchMeta:${match.id}`);
+
+    console.log(`Match ${match.id} finalized + deleted in Redis`);
   } catch (error) {
     console.error(`finalise error ${match.id}:`, error);
     throw error;

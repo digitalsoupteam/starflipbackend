@@ -2,15 +2,8 @@
 
 import { Match, MoveResult } from "../structures/match.struct";
 import { makeMove } from "./game.service";
-import {
-  rC,
-  activeGet,
-  activeSave,
-  GetResult,
-} from "../storage/activeStorage";
+import { rC, activeGet, activeSave, GetResult } from "../storage/activeStorage";
 import { setActiveMatch } from "./playerMatch.service";
-
-export const TURN_TIMEOUT_MS = 300_000; // 5 минут ТАЙМЛЕФТ хода / рекконнекта
 
 /* создает "экземпляр" отдельного матча */
 export function startMatch(match: Match): Match {
@@ -47,6 +40,7 @@ export async function startAndSaveMatch(match: Match): Promise<Match> {
       JSON.stringify({
         matchId: newMatch.id,
         onChainId: newMatch.onChainId ?? null,
+        status: newMatch.status,
       }),
     );
   } catch (err) {
@@ -137,16 +131,11 @@ export async function moveInMatch(
       result.match.turnStartedAt = Date.now();
     }
 
-    if (!result.error && result.match) {
+    if (!result.error && result.match && result.match.status !== "finished") {
       const saved = await saveMatch(result.match);
       if (saved) {
         for (const p of result.match.players) {
           await setActiveMatch(p, result.match.id);
-          const turnKey = `match:${result.match.id}:turn`;
-          const nextPlayer = result.match.currentTurn; // это игрок, который ходит следующим
-          if (nextPlayer) {
-            await rC.set(turnKey, nextPlayer, { EX: TURN_TIMEOUT_MS / 1000 });
-          }
         }
       }
       if (!saved) {

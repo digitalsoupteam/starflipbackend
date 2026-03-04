@@ -12,10 +12,14 @@ export async function setActiveMatch(playerId: string, matchId: string) {
 /* Спрашивает Redis: "В каком матче сейчас игрок player123?" */
 export async function getActiveMatch(playerId: string): Promise<string | null> {
   // null если игрок не в игре
-  return await rC.get(key(playerId)); 
+  return await rC.get(key(playerId));
 }
 
 /* Удаляет запись о том, что игрок находится в матче. (Игрок вышел/игра закончилась) */
 export async function clearActiveMatch(playerId: string) {
-  await rC.del(key(playerId));
+  const redisKey = `player:${playerId}:activeMatch`;
+
+  console.log("Deleting active match key:", redisKey);
+
+  await rC.del(redisKey);
 }
