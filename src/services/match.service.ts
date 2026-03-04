@@ -2,7 +2,7 @@
 
 import { Match, MoveResult } from "../structures/match.struct";
 import { makeMove } from "./game.service";
-import { rC, activeGet, activeSave, GetResult } from "../storage/activeStorage";
+import { rC, activeSave, GetResult } from "../storage/activeStorage";
 import { setActiveMatch } from "./playerMatch.service";
 
 /* создает "экземпляр" отдельного матча */
