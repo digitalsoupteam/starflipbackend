@@ -1,24 +1,31 @@
-import { contract } from "../contracts/provider.onChain";
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
+import { PvPGridArtifact } from "../contracts/PvPGridABI";
+
 dotenv.config();
 
 jest.setTimeout(120_000);
 
 describe("Cancel FINDMATCH() on chain for both wallets", () => {
   it("should cancel finding match for both players", async () => {
+    // создаём provider напрямую
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
 
-    // Список кошельков
+    // создаём кошельки напрямую
     const wallets = [
       new ethers.Wallet(process.env.ADDRESS1_PRIVATKEY!, provider),
       new ethers.Wallet(process.env.ADDRESS2_PRIVATKEY!, provider),
     ];
 
+    const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS!;
+    const abi = PvPGridArtifact[0].abi;
+
     for (let i = 0; i < wallets.length; i++) {
       const wallet = wallets[i];
       const playerNumber = i + 1;
-      const contractInstance = contract.connect(wallet) as any;
+
+      // создаём независимый экземпляр контракта для каждого кошелька
+      const contractInstance = new ethers.Contract(CONTRACT_ADDRESS, abi, wallet);
 
       try {
         const cancelTx = await contractInstance.cancelFindMatch();
@@ -33,7 +40,7 @@ describe("Cancel FINDMATCH() on chain for both wallets", () => {
           console.warn(`Player ${playerNumber} cancel transaction failed.`);
         }
       } catch (error: any) {
-        // Специальная проверка на "ничего не найдено"
+        // если нет матча — тоже нормально
         if (error.message && error.message.includes("No match found")) {
           console.log(`Player ${playerNumber} had no match to cancel.`);
         } else {
