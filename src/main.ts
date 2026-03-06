@@ -1,29 +1,12 @@
-import { onMatchRequested } from './services/contracts/listener';
-import { joinOrCreateMatch } from './services/matchMaking.service';
+import { onMatchRequested } from './services/contracts/listener.findMatch';
+import { handleMatchRequested } from './services/contracts/handler.findMatch';
 import { startServer } from './server/server';
-import { initRedisExpiredListener } from './services/autoCansel.service';
+import { initRedisExpiredListener } from './services/contracts/autoCansel.onChainService';
+import { provider } from './services/contracts/provider.onChain';
 import 'dotenv/config';
 
 startServer();
 initRedisExpiredListener().catch(console.error);
-
-onMatchRequested(async (event) => {
-  console.log('event!', event.player);
-  console.log(`bid: ${event.amount} ${event.token}`);
-  console.log(`token: ${event.token}`)
-  
-  try {
-    const match = await joinOrCreateMatch(
-      event.player, 
-      Number(event.amount),
-      event.token
-    );
-    
-    console.log(`player takes matchID (on back) ${match.id}`);
-    
-  } catch (error) {
-    console.error(`err ${error}`);
-  }
-});
-
+onMatchRequested(handleMatchRequested);
 console.log('Waiting for players ;)');
+

@@ -1,4 +1,4 @@
-import { contract } from "./contract.service";
+import { contract } from "./provider.onChain";
 
 /* функция слушает событие match request */
 export function onMatchRequested(callback: (event: any) => void) {

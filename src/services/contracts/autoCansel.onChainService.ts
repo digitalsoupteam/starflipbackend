@@ -1,5 +1,5 @@
-import { rC, activeGet } from "../storage/activeStorage";
-import { cancelMatch_onContract } from "./contracts/contract.service";
+import { rC, activeGet } from "../../storage/activeStorage";
+import { cancelMatch_onContract } from "./contract.onChainService";
 
 export async function initRedisExpiredListener() {
   const sub = rC.duplicate();

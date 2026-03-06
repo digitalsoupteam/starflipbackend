@@ -3,7 +3,7 @@
 import { Match, Box, MoveResult } from "../structures/match.struct";
 import { randomizePool } from "../utils/random";
 import { hashBoard } from "../utils/boardHash";
-import { finishMatch_onContract } from "./contracts/contract.service";
+import { finishMatch_onContract } from "./contracts/contract.onChainService";
 import { clearActiveMatch } from "./playerMatch.service";
 import { rC } from "../storage/activeStorage";
 

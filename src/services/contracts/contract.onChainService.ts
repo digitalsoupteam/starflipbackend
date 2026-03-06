@@ -1,26 +1,5 @@
-import { ethers } from "ethers";
-import { PvPGridArtifact } from "./PvPGridABI";
+import { contract } from "./provider.onChain";
 import { rC } from "../../storage/activeStorage";
-import "dotenv/config";
-
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
-const BACKEND_PRIVATE_KEY = process.env.PRIVATE_KEY;
-const PvPGridABI = (PvPGridArtifact as any)[0].abi;
-
-if (!BACKEND_PRIVATE_KEY) throw new Error("не найден приват ки бека в .env");
-if (!CONTRACT_ADDRESS) throw new Error("не найден адрес контракта игры в .env");
-
-const RPC_WSS = process.env.RPC_WSS;
-if (!RPC_WSS) throw new Error("RPC_WSS не задан в .env");
-
-const provider = new ethers.WebSocketProvider(RPC_WSS);
-const backendWallet = new ethers.Wallet(BACKEND_PRIVATE_KEY, provider);
-
-export const contract = new ethers.Contract(
-  CONTRACT_ADDRESS,
-  PvPGridABI,
-  backendWallet,
-);
 
 /* Функция создания матча, когда найдена пара игроков */
 export async function createMatch_onContract(
@@ -107,10 +86,9 @@ export async function cancelMatch_onContract(matchId: string) {
 
     await tx.wait();
     console.log(`Матч ${matchId} отменен на контракте`);
-    
+
     await rC.del(`matchMeta:${matchId}`);
     console.log(`matchMeta:${matchId} удален из Redis`);
-
   } catch (error) {
     console.error("Ошибка cancelMatch_onContract:", error);
   }
