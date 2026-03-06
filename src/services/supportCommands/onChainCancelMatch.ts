@@ -1,4 +1,4 @@
-import { contract } from "../contracts/contract.onChainService";
+import { contract } from "../contracts/provider.onChain";
 
 async function cancelMatch(id: string) {
   try {
