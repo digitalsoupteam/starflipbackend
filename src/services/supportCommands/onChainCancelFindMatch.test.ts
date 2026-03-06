@@ -9,7 +9,7 @@ jest.setTimeout(120_000);
 describe("Cancel FINDMATCH() on chain for both wallets", () => {
   it("should cancel finding match for both players", async () => {
     // создаём provider напрямую
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_HTTPS);
 
     // создаём кошельки напрямую
     const wallets = [

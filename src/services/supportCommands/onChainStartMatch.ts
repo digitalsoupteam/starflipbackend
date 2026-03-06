@@ -4,7 +4,7 @@ import { PvPGridArtifact } from "../contracts/PvPGridABI";
 
 dotenv.config();
 
-const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+const provider = new ethers.JsonRpcProvider(process.env.RPC_HTTPS);
 
 const wallet1 = new ethers.Wallet(process.env.ADDRESS1_PRIVATKEY!, provider);
 const wallet2 = new ethers.Wallet(process.env.ADDRESS2_PRIVATKEY!, provider);

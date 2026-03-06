@@ -1,29 +1,15 @@
-import { onMatchRequested } from './services/contracts/listener.onChain';
-import { joinOrCreateMatch } from './services/matchMaking.service';
+// main.ts
+import 'dotenv/config';
 import { startServer } from './server/server';
 import { initRedisExpiredListener } from './services/contracts/autoCansel.onChainService';
-import 'dotenv/config';
+import { startPollingMatches } from './services/contracts/pollingFindMatch.onChain';
 
+// запускаем сервер
 startServer();
+
+// инициализация авто-отмены матчей
 initRedisExpiredListener().catch(console.error);
 
-onMatchRequested(async (event) => {
-  console.log('event!', event.player);
-  console.log(`bid: ${event.amount} ${event.token}`);
-  console.log(`token: ${event.token}`)
-  
-  try {
-    const match = await joinOrCreateMatch(
-      event.player, 
-      Number(event.amount),
-      event.token
-    );
-    
-    console.log(`player takes matchID (on back) ${match.id}`);
-    
-  } catch (error) {
-    console.error(`err ${error}`);
-  }
-});
+// запускаем polling на новые события MatchRequested
+startPollingMatches(); 
 
-console.log('Waiting for players ;)');
