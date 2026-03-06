@@ -12,26 +12,28 @@ export let provider = new ethers.WebSocketProvider(RPC_WSS);
 export let backendWallet = new ethers.Wallet(BACKEND_PRIVATE_KEY, provider);
 export let contract = new ethers.Contract(CONTRACT_ADDRESS, PvPGridABI, backendWallet);
 
-export function initWssListeners() {
-  const ws = provider.websocket as any;
 
-  ws.onopen = () => console.log(" WSS connection established");
+// ПРОБЛЕМА РЕККОНЕКТА ПОТОМ ПОПРАВИТЬ!
+// export function initWssListeners() {
+//   const ws = provider.websocket as any;
 
-  ws.onclose = async (event: any) => {
-    console.log(`WSS connection closed. Code: ${event.code}`);
-    await wssReconnect();
-  };
+//   ws.onopen = () => console.log(" WSS connection established");
 
-  ws.onerror = (err: any) => console.error("⚠️ WSS error:", err);
-}
+//   ws.onclose = async (event: any) => {
+//     console.log(`WSS connection closed. Code: ${event.code}`);
+//     await wssReconnect();
+//   };
 
-async function wssReconnect() {
-  console.log("Reconnecting WSS...");
-  try { await provider.destroy(); } catch (_) {}
+//   ws.onerror = (err: any) => console.error("⚠️ WSS error:", err);
+// }
 
-  provider = new ethers.WebSocketProvider(RPC_WSS);
-  backendWallet = new ethers.Wallet(BACKEND_PRIVATE_KEY, provider);
-  contract = new ethers.Contract(CONTRACT_ADDRESS, PvPGridABI, backendWallet);
+// async function wssReconnect() {
+//   console.log("Reconnecting WSS...");
+//   try { await provider.destroy(); } catch (_) {}
 
-  initWssListeners();
-}
+//   provider = new ethers.WebSocketProvider(RPC_WSS);
+//   backendWallet = new ethers.Wallet(BACKEND_PRIVATE_KEY, provider);
+//   contract = new ethers.Contract(CONTRACT_ADDRESS, PvPGridABI, backendWallet);
+
+//   initWssListeners();
+// }
