@@ -40,25 +40,28 @@ export async function startPollingMatches() {
         console.log(`No MatchRequested events found in blocks ${lastBlock + 1}-${currentBlock}`);
       }
 
+      // 🔹 обрабатываем каждый лог в отдельном async IIFE
       for (const log of logs) {
-        let parsed: ethers.LogDescription | null = null;
-        try {
-          parsed = contract.interface.parseLog(log);
-        } catch {
-          continue;
-        }
-        if (!parsed) continue;
+        (async () => {
+          let parsed: ethers.LogDescription | null = null;
+          try {
+            parsed = contract.interface.parseLog(log);
+          } catch {
+            return;
+          }
+          if (!parsed) return;
 
-        const { player, token, amount } = parsed.args as any;
+          const { player, token, amount } = parsed.args as any;
 
-        console.log('Found MatchRequested event:', { player, token, amount });
+          console.log('Found MatchRequested event:', { player, token, amount });
 
-        try {
-          const match = await joinOrCreateMatch(player, Number(amount), token);
-          console.log(`Player ${player} in ${match.id}`);
-        } catch (err) {
-          console.error('Error joining match:', err);
-        }
+          try {
+            const match = await joinOrCreateMatch(player, Number(amount), token);
+            console.log(`Player ${player} in ${match.id}`);
+          } catch (err) {
+            console.error('Error joining match:', err);
+          }
+        })();
       }
 
       lastBlock = currentBlock;
