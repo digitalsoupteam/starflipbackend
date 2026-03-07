@@ -1,15 +1,11 @@
-// main.ts
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first");
+
 import 'dotenv/config';
 import { startServer } from './server/server';
+import { startPollingMatches } from "./services/contracts/pollingFindMatch.onChain";
 import { initRedisExpiredListener } from './services/contracts/autoCansel.onChainService';
-import { startPollingMatches } from './services/contracts/pollingFindMatch.onChain';
 
-// запускаем сервер
 startServer();
-
-// инициализация авто-отмены матчей
 initRedisExpiredListener().catch(console.error);
-
-// запускаем polling на новые события MatchRequested
-startPollingMatches(); 
-
+startPollingMatches();
