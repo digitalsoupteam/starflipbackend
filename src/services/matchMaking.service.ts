@@ -279,20 +279,19 @@ export async function joinWaitingMatch(
     if (
       match.status !== "waiting" ||
       match.players.length >= 2 ||
-      Date.now() - match.createdAt > 30000
+      Date.now() - match.createdAt > 120000
     ) {
-      // Матч старше 30 секунд
 
       // Быстрый откат - обрабатываем невалидный матч
       if (match.status === "waiting" && match.players.length < 2) {
-        // Возвращаем матч в список ожидания только если он свежий (< 5 секунд)
-        if (Date.now() - match.createdAt < 5000) {
+        // Возвращаем матч в список ожидания только если он свежий 
+        if (Date.now() - match.createdAt < 60000) {
           await rC.zAdd("waiting:matches", {
-            score: Date.now(), // Обновляем время для приоритета
+            score: Date.now(), 
             value: match.id,
           });
         } else {
-          // Старый матч (> 5 секунд) - удаляем навсегда
+          // Старый матч - удаляем навсегда
           const multi = rC.multi();
           multi.del(`waiting:match:${matchId}`);
           multi.zRem("waiting:matches", matchId);
