@@ -36,7 +36,7 @@ async function getMatchAction(): Promise<MatchAction> {
             ARGV[1],
             "NX",
             "PX",
-            200  -- TTL: 200ms 
+            2000  -- TTL: 2000ms 
           )
           
           if lock then
@@ -64,7 +64,7 @@ async function getMatchAction(): Promise<MatchAction> {
       ARGV[1],
       "NX",
       "PX",
-      500  -- TTL: 500ms lock на создание матча
+      2000  -- TTL: 2000 lock на создание матча
     )
     
     if lock then
@@ -84,6 +84,7 @@ async function getMatchAction(): Promise<MatchAction> {
   }
 
   const [type, matchId] = result as [string, string];
+  console.log(`getMatchAction -> type: ${type}, matchId: ${matchId}`);
 
   if (type === "join") {
     return { type: "join", matchId };
@@ -110,6 +111,16 @@ export async function joinOrCreateMatch(
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const action = await getMatchAction();
+    if (action.type === "join") {
+      console.log(
+        `Player ${playerId} attempt ${attempt + 1}: action = ${action.type}, matchId = ${action.matchId}`,
+      );
+    } else {
+      console.log(
+        `Player ${playerId} attempt ${attempt + 1}: action = ${action.type}`,
+      );
+    }
+
     lastActionType = action.type;
 
     // Если нашли матч для присоединения
@@ -197,7 +208,9 @@ export async function createWaitingMatch(
     NX: true, // Только если ключа нет
     PX: 3000, // TTL: 3000ms (3 секунды) для блокировки игрока от создания нескольких матчей
   });
-
+  console.log(
+    `Player ${playerId} creating match: player lock = ${playerLocked}`,
+  );
   if (!playerLocked) {
     throw new Error(`Player ${playerId} is already creating a match`);
   }
@@ -221,6 +234,8 @@ export async function createWaitingMatch(
 
     // транзакция атомарный сейв
     const multi = rC.multi();
+
+    console.log(`Player ${playerId} created match ${match.id}`);
 
     // Если игрок уйдет, матч автоматически удалится через 5 минут
     multi.set(`waiting:match:${match.id}`, JSON.stringify(match), {
@@ -257,8 +272,12 @@ export async function joinWaitingMatch(
   // Ставим lock на присоединение к конкретному матчу
   const locked = await rC.set(lockKey, lockValue, {
     NX: true, // Только если ключа нет
-    PX: 1000, // TTL: 1000ms (1 секунда) для блокировки матча на время присоединения
+    PX: 2000, // TTL: 1000ms (1 секунда) для блокировки матча на время присоединения
   });
+
+  console.log(
+    `Player ${playerId} trying to join match ${matchId}: lock = ${locked}`,
+  );
 
   if (!locked) {
     return null; // Кто-то уже пытается присоединиться к этому матчу
@@ -274,20 +293,20 @@ export async function joinWaitingMatch(
     }
 
     const match = JSON.parse(raw);
+    const age = Math.max(0, Date.now() - match.createdAt);
 
     // Проверяем условия присоединения
     if (
       match.status !== "waiting" ||
       match.players.length >= 2 ||
-      Date.now() - match.createdAt > 120000
+      age > 120000
     ) {
-
       // Быстрый откат - обрабатываем невалидный матч
       if (match.status === "waiting" && match.players.length < 2) {
-        // Возвращаем матч в список ожидания только если он свежий 
-        if (Date.now() - match.createdAt < 60000) {
+        // Возвращаем матч в список ожидания только если он свежий
+        if (age < 60000) {
           await rC.zAdd("waiting:matches", {
-            score: Date.now(), 
+            score: Date.now(),
             value: match.id,
           });
         } else {
@@ -301,16 +320,22 @@ export async function joinWaitingMatch(
       return null;
     }
 
+    console.log(
+      `Player ${playerId} join conditions: status=${match.status}, players=${match.players.length}, createdAt=${match.createdAt}`,
+    );
+
     const board = createBoard(match.bid * 2, 12);
     const boardHash = hashBoard(board);
 
+    console.log("Creating on-chain match...");
     try {
-      const onChainId = await createMatch_onContract(
-        match.players[0],
-        playerId,
-        token,
-        boardHash,
-      );
+      const onChainId = await Promise.race([
+        createMatch_onContract(match.players[0], playerId, token, boardHash),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("on-chain timeout")), 15000),
+        ),
+      ]);
+      console.log("On-chain match created:", onChainId);
 
       match.onChainId = onChainId;
     } catch (error) {
@@ -320,6 +345,7 @@ export async function joinWaitingMatch(
 
     match.players.push(playerId);
     match.balances[playerId] = 0;
+    console.log(`Player ${playerId} successfully joined match ${match.id}`);
     match.status = "active";
     match.board = board;
     match.boardHash = boardHash;

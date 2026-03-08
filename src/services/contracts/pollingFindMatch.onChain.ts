@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import { PvPGridArtifact } from "./PvPGridABI";
 import { joinOrCreateMatch } from "../matchMaking.service";
-import 'dotenv/config';
+import "dotenv/config";
 
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS!;
 const RPC_HTTPS = process.env.RPC_HTTPS!;
@@ -18,16 +18,21 @@ export async function startPollingMatches() {
       const currentBlock = await provider.getBlockNumber();
       if (lastBlock === 0) lastBlock = currentBlock - 1;
 
-      console.log(`Checking blocks from ${lastBlock + 1} to ${currentBlock}...`);
+      console.log(
+        `Checking blocks from ${lastBlock + 1} to ${currentBlock}...`,
+      );
 
-      const eventFragment = contract.interface.getEvent('MatchRequested');
+      const eventFragment = contract.interface.getEvent("MatchRequested");
       if (!eventFragment) {
         console.error('Event "MatchRequested" not found in contract ABI!');
         await sleep(20000);
         continue;
       }
 
-      const filterTopics = contract.interface.encodeFilterTopics(eventFragment, []);
+      const filterTopics = contract.interface.encodeFilterTopics(
+        eventFragment,
+        [],
+      );
 
       const logs = await provider.getLogs({
         address: CONTRACT_ADDRESS,
@@ -37,36 +42,40 @@ export async function startPollingMatches() {
       });
 
       if (logs.length === 0) {
-        console.log(`No MatchRequested events found in blocks ${lastBlock + 1}-${currentBlock}`);
+        console.log(
+          `No MatchRequested events found in blocks ${lastBlock + 1}-${currentBlock}`,
+        );
       }
 
-      // 🔹 обрабатываем каждый лог в отдельном async IIFE
       for (const log of logs) {
-        (async () => {
+        try {
           let parsed: ethers.LogDescription | null = null;
+
           try {
             parsed = contract.interface.parseLog(log);
-          } catch {
-            return;
+          } catch (err) {
+            console.error("Failed to parse log:", err);
+            continue;
           }
-          if (!parsed) return;
+
+          if (!parsed) continue;
 
           const { player, token, amount } = parsed.args as any;
 
-          console.log('Found MatchRequested event:', { player, token, amount });
+          console.log("Found MatchRequested event:", { player, token, amount });
 
-          try {
-            const match = await joinOrCreateMatch(player, Number(amount), token);
-            console.log(`Player ${player} in ${match.id}`);
-          } catch (err) {
-            console.error('Error joining match:', err);
-          }
-        })();
+          // 🔹 просто вызываем joinOrCreateMatch без race
+          const match = await joinOrCreateMatch(player, Number(amount), token);
+
+          console.log(`Player ${player} in ${(match as any).id}`);
+        } catch (err) {
+          console.error("Error processing MatchRequested event:", err);
+        }
       }
 
       lastBlock = currentBlock;
     } catch (err) {
-      console.error('Error fetching new blocks:', err);
+      console.error("Error fetching new blocks:", err);
     }
 
     await sleep(20000);
@@ -74,5 +83,5 @@ export async function startPollingMatches() {
 }
 
 function sleep(ms: number) {
-  return new Promise(res => setTimeout(res, ms));
+  return new Promise((res) => setTimeout(res, ms));
 }

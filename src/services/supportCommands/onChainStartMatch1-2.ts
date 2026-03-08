@@ -62,4 +62,5 @@ async function findMatch2() {
 findMatch1();
 setTimeout(() => {
   findMatch2();
-}, 30000);
+}, 10000);
+
