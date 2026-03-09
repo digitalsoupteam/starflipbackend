@@ -7,9 +7,12 @@ export function startServer() {
   const PORT = 3000;
   app.use(
     cors({
-      origin: "*",
+      origin: "http://localhost:5173",
+      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     }),
   );
+
+  app.options("*", cors());
   app.use(express.json());
   app.use("/game", gameRouter);
 
