@@ -1,49 +1,49 @@
-import crypto from "crypto";
-
-/**
- * Рандомное распределение общего баланса по клеткам
- * Ограничение: ни одна клетка не получает больше maxPercent от total
- */
 export function randomizePool(
   total: bigint,
   count: number,
-  maxPercent: number = 20
+  maxPercent: number = 15
 ): bigint[] {
   if (count <= 0) throw new Error("Count must be > 0");
   if (maxPercent <= 0 || maxPercent > 100)
     throw new Error("maxPercent must be between 0 and 100");
 
-  const result: bigint[] = Array(count).fill(0n);
+  const result: bigint[] = [];
   let remaining = total;
-
-  // максимальная сумма на одну клетку
   const maxPerCell = (total * BigInt(maxPercent)) / 100n;
 
   for (let i = 0; i < count - 1; i++) {
     const cellsLeft = count - i;
-
-    // чтобы оставить хотя бы 1n на каждую оставшуюся клетку
     const minRemainingForOthers = BigInt(cellsLeft - 1);
 
-    // текущий максимум для клетки = минимум из maxPerCell и того, что можно забрать, не нарушив лимит для остальных
-    const allowedMax = remaining - minRemainingForOthers > maxPerCell
-      ? maxPerCell
-      : remaining - minRemainingForOthers;
+    // безопасный максимум — не больше maxPerCell и не меньше 1n
+    let allowedMax = remaining - minRemainingForOthers;
+    allowedMax = allowedMax > maxPerCell ? maxPerCell : allowedMax;
 
     const randomBuffer = new Uint32Array(1);
     crypto.getRandomValues(randomBuffer);
+    const randFraction = BigInt(randomBuffer[0]) * allowedMax / 4294967295n;
 
-    // 1n + случайное число до allowedMax
-    const value = 1n + (BigInt(randomBuffer[0]) % allowedMax);
-
-    result[i] = value;
+    const value = 1n + randFraction;
+    result.push(value);
     remaining -= value;
   }
 
-  // последняя клетка получает остаток
-  result[count - 1] = remaining;
+  // последняя клетка получает остаток, но если она превышает maxPerCell, дробим оставшийся пул
+  if (remaining > maxPerCell) {
+    result.push(maxPerCell);
+    remaining -= maxPerCell;
 
-  // перемешиваем для случайного порядка
+    // оставшийся остаток раскидываем по предыдущим клеткам, чтобы не превышать maxPerCell
+    for (let i = 0; remaining > 0n && i < result.length; i++) {
+      const add = remaining + result[i] > maxPerCell ? maxPerCell - result[i] : remaining;
+      result[i] += add;
+      remaining -= add;
+    }
+  } else {
+    result.push(remaining);
+  }
+
+  // перемешиваем
   for (let i = result.length - 1; i > 0; i--) {
     const randomBuffer = new Uint32Array(1);
     crypto.getRandomValues(randomBuffer);
