@@ -1,7 +1,7 @@
 export function randomizePool(
   total: bigint,
   count: number,
-  maxPercent: number = 15
+  maxPercent: number = 25
 ): bigint[] {
   if (count <= 0) throw new Error("Count must be > 0");
   if (maxPercent <= 0 || maxPercent > 100)
