@@ -10,5 +10,4 @@ amount,
 referrer,
 transactionHash: event.log.transactionHash
 });
-});
-}
+})}
