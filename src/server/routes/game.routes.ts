@@ -17,8 +17,7 @@ gameRouter.post("/join", async (req, res) => {
         .json({ error: "playerId, bid and token are required" });
     }
 
-    const match = await joinOrCreateMatch(playerId, Number(bid), token);
-
+    const match = await joinOrCreateMatch(playerId, String(bid), token);
     res.json({
       message:
         match.status === "waiting" ? "waiting for opponent" : "match started",
@@ -148,12 +147,16 @@ gameRouter.get("/result/:matchId", async (req, res) => {
   try {
     const { matchId } = req.params;
     const result = await getMatch(matchId);
-    if (!result.ok || !result.match)
+
+    if (!result.ok || !result.match) {
       return res.status(404).json({ error: "match not found" });
+    }
 
     const match = result.match;
-    if (match.status !== "finished")
+
+    if (match.status !== "finished") {
       return res.status(400).json({ error: "match is not finished yet" });
+    }
 
     res.json({
       matchId: match.id,
@@ -161,12 +164,17 @@ gameRouter.get("/result/:matchId", async (req, res) => {
       status: match.status,
       players: match.players,
       currentTurn: match.currentTurn ?? null,
-      balances: match.balances,
+      balances: match.balances, // остаётся string, как в ончейн
       turnStartedAt: match.turnStartedAt,
       boardHash: match.boardHash ?? null,
       lastMoveId: match.lastMoveId ?? null,
-      board: match.board,
-      result: getGameResult(match),
+      // board тоже с value: string
+      board: match.board.map((box) => ({
+        id: box.id,
+        openedBy: box.openedBy,
+        value: box.value, // уже string
+      })),
+      result: getGameResult(match), // внутри getGameResult конвертируем в BigInt при вычислениях
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

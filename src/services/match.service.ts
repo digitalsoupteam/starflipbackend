@@ -16,7 +16,7 @@ export function startMatch(match: Match): Match {
 
   return {
     ...match,
-    balances: { [p1]: 0, [p2]: 0 },
+    balances: { [p1]: "0", [p2]: "0" },
     currentTurn,
     turnStartedAt: Date.now(),
   };

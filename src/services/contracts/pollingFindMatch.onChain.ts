@@ -62,11 +62,17 @@ export async function startPollingMatches() {
 
           const { player, token, amount } = parsed.args as any;
 
-          console.log("Found MatchRequested event:", { player, token, amount });
-
-          // 🔹 просто вызываем joinOrCreateMatch без race
-          const match = await joinOrCreateMatch(player, Number(amount), token);
-
+          console.log("Found MatchRequested event:", {
+            player,
+            token,
+            amount: amount.toString(),
+          });
+         
+          const match = await joinOrCreateMatch(
+            player,
+            amount.toString(),
+            token,
+          );
           console.log(`Player ${player} in ${(match as any).id}`);
         } catch (err) {
           console.error("Error processing MatchRequested event:", err);

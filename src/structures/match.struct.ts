@@ -3,7 +3,7 @@
 /* игрокая клетка и ее свойства */ 
 export interface Box {
 id: number, 
-value: number, // поинты внутри клетки
+value: string, // поинты внутри клетки
 openedBy?: string // кто открыл клетку
 }
 
@@ -18,13 +18,13 @@ export interface Match {
 
   players: string[];              // [player1] | [player1, player2]
 
-  bid: number;                    // ставка одного игрока
-  total: number;                  // общая сумма (bid * 2)
+  bid: string;                    // ставка одного игрока
+  total: string;                  // общая сумма (bid * 2)
   count: number;                  // количество клеток (у нас базово 12)
 
   board: Box[];                   // игровое поле (пустое в waiting)
   boardHash?: string;            // хеш поля
-  balances: Record<string, number>; // балансы игроков
+  balances: Record<string, string>; // балансы игроков
 
   currentTurn?: string;           // чей ход (только при active)
   lastMoveId?: string;           // новый апдейт, для того, чтобы при дисконнекте не потерять был ли ход или не был

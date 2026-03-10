@@ -26,19 +26,17 @@ export async function createMatch_onContract(
   return Number(event?.args[0]); // айдишник матча в контакте (помещаем в обьект)
 }
 
-/* завершаем матч */
-export async function finishMatch_onContract(
+/* завершаем матч */ export async function finishMatch_onContract(
   matchId: number,
+  players: string[],
   balances: { [playerAddress: string]: bigint },
   total: bigint,
 ): Promise<void> {
   const houseEdge: bigint = await contract.houseEdge();
   const maxHouse = (total * houseEdge) / 100n;
 
-  const players = Object.keys(balances);
-
   if (players.length !== 2) {
-    throw new Error("Invalid balances length");
+    throw new Error("Invalid players length");
   }
 
   const score1 = balances[players[0]] ?? 0n;

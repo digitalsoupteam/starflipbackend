@@ -49,15 +49,15 @@ export async function makeMove(
 }
 
 /* вспомогательная функция, создает игровое поле в рандомном порядке */
-export function createBoard(total: number, count: number): Box[] {
-  //создает рандомное распределение total монет по count боксам
-  const values: number[] = randomizePool(total, count);
+export function createBoard(total: bigint, count: number): Box[] {
+  // создаёт рандомное распределение total монет по count боксам
+  const values: bigint[] = randomizePool(total, count);
+
   return values.map((value, index) => ({
     id: index,
-    value,
+    value: value.toString(),
   }));
 }
-
 /* вспомогательная функция, проверяет возможность хода (активные клетки, ход игрока) */
 export function validateMove(
   match: Match,
@@ -100,11 +100,16 @@ export function applyMove(
     box.id === boxId ? { ...box, openedBy: playerId } : box,
   );
 
+  const box = board.find((b) => b.id === boxId)!;
+  const boxValue = BigInt(box.value);
+
+  const currentBalance = BigInt(match.balances[playerId] ?? "0");
+
+  const newBalance = currentBalance + boxValue;
+
   const balances = {
     ...match.balances,
-    [playerId]:
-      (match.balances[playerId] ?? 0) +
-      board.find((b) => b.id === boxId)!.value,
+    [playerId]: newBalance.toString(),
   };
 
   const nextPlayer = match.players.find((p) => p !== playerId);
@@ -117,7 +122,6 @@ export function applyMove(
     boardHash: hashBoard(board),
   };
 }
-
 /* вспомогательная функция, проверяет, открыто ли все поле, что является концом игры в случае true */
 export function isGameOver(match: Match): boolean {
   return match.board.every((box) => box.openedBy !== undefined);
@@ -131,8 +135,11 @@ export function getGameResult(match: Match) {
 
   const [p1, p2] = entries;
 
-  //победил игрок 1
-  if (p1[1] > p2[1]) {
+  const b1 = BigInt(p1[1]);
+  const b2 = BigInt(p2[1]);
+
+  // победил игрок 1
+  if (b1 > b2) {
     return {
       winner: p1[0],
       loser: p2[0],
@@ -140,8 +147,8 @@ export function getGameResult(match: Match) {
     };
   }
 
-  //победил игрок 2
-  if (p2[1] > p1[1]) {
+  // победил игрок 2
+  if (b2 > b1) {
     return {
       winner: p2[0],
       loser: p1[0],
@@ -165,17 +172,33 @@ export async function finalizeMatch(match: Match): Promise<void> {
     const balances: { [player: string]: bigint } = {};
 
     for (const addr of match.players) {
-      balances[addr] = BigInt(match.balances[addr] ?? 0);
+      balances[addr] = BigInt(match.balances[addr] ?? "0");
     }
 
+    // 🔒 Проверка целостности банка
+    const total = BigInt(match.total);
+
+    const sum = Object.values(match.balances).reduce(
+      (acc, v) => acc + BigInt(v),
+      0n,
+    );
+
+    if (sum !== total) {
+      throw new Error(
+        `Balance mismatch: sum=${sum.toString()} total=${total.toString()}`,
+      );
+    }
+
+    // отправка результата в контракт
     await finishMatch_onContract(
       Number(match.onChainId),
+      match.players,
       balances,
-      BigInt(match.total),
+      total,
     );
 
     for (const player of match.players) {
-      console.log("player need be cleaned",player)
+      console.log("player need be cleaned", player);
       await clearActiveMatch(player);
     }
 

@@ -100,7 +100,7 @@ async function getMatchAction(): Promise<MatchAction> {
 /* Основная функция матч мейкинга, подключиться к матчу, либо создать свой */
 export async function joinOrCreateMatch(
   playerId: string,
-  bid: number,
+  bid: string,
   token: string,
 ): Promise<Match> {
   const maxAttempts = 200;
@@ -200,7 +200,7 @@ export async function joinOrCreateMatch(
 /* Создание ожидающего матча */
 export async function createWaitingMatch(
   playerId: string,
-  bid: number,
+  bid: string,
 ): Promise<Match> {
   // Проверяем, не создает ли уже этот игрок матч
   const playerLockKey = `player:creating:${playerId}`;
@@ -217,6 +217,7 @@ export async function createWaitingMatch(
 
   try {
     const id = await generateId();
+    const bidBig = BigInt(bid);
 
     const match: Match = {
       id,
@@ -224,10 +225,10 @@ export async function createWaitingMatch(
       creator: playerId,
       players: [playerId],
       bid,
-      total: bid * 2,
+      total: (bidBig * 2n).toString(),
       count: 12,
       board: [],
-      balances: { [playerId]: 0 },
+      balances: { [playerId]: "0" },
       status: "waiting",
       turnStartedAt: 0,
     };
@@ -324,7 +325,7 @@ export async function joinWaitingMatch(
       `Player ${playerId} join conditions: status=${match.status}, players=${match.players.length}, createdAt=${match.createdAt}`,
     );
 
-    const board = createBoard(match.bid * 2, 12);
+    const board = createBoard(BigInt(match.bid) * 2n, 12);
     const boardHash = hashBoard(board);
 
     console.log("Creating on-chain match...");
@@ -344,7 +345,7 @@ export async function joinWaitingMatch(
     }
 
     match.players.push(playerId);
-    match.balances[playerId] = 0;
+    match.balances[playerId] = "0";
     console.log(`Player ${playerId} successfully joined match ${match.id}`);
     match.status = "active";
     match.board = board;
