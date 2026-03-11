@@ -163,6 +163,8 @@ export function getGameResult(match: Match) {
   };
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function finalizeMatch(match: Match): Promise<void> {
   try {
     if (!match.onChainId) {
@@ -196,6 +198,8 @@ export async function finalizeMatch(match: Match): Promise<void> {
       balances,
       total,
     );
+
+    await sleep(10000);
 
     for (const player of match.players) {
       console.log("player need be cleaned", player);
