@@ -163,7 +163,7 @@ export function getGameResult(match: Match) {
   };
 }
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function finalizeMatch(match: Match): Promise<void> {
   try {
@@ -206,8 +206,8 @@ export async function finalizeMatch(match: Match): Promise<void> {
       await clearActiveMatch(player);
     }
 
-    await rC.del(`match:${match.id}`);
-    await rC.del(`matchMeta:${match.id}`);
+    await rC.expire(`match:${match.id}`, 60);
+    await rC.expire(`matchMeta:${match.id}`, 60);
 
     console.log(`Match ${match.id} finalized + deleted in Redis`);
   } catch (error) {
