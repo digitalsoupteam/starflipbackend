@@ -154,7 +154,7 @@ export async function joinOrCreateMatch(
       }
     }
 
-    // Если нужно подождать (wait) - используем умную задержку
+    // Если нужно подождать (wait) 
     let waitTime = initialWaitTime;
 
     // Увеличиваем задержку экспоненциально если долго ждем
@@ -240,7 +240,7 @@ export async function createWaitingMatch(
 
     // Если игрок уйдет, матч автоматически удалится через 5 минут
     multi.set(`waiting:match:${match.id}`, JSON.stringify(match), {
-      EX: 300, // TTL: 300 секунд = 5 минут
+      EX: 3000,
     });
 
     // id матча в отсортированный список ожидающих

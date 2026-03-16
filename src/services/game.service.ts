@@ -6,6 +6,7 @@ import { hashBoard } from "../utils/boardHash";
 import { finishMatch_onContract } from "./contracts/contract.service";
 import { clearActiveMatch } from "./playerMatch.service";
 import { rC } from "../storage/activeStorage";
+import { activeSave } from "../storage/activeStorage";
 
 /* делает ход, проверяет validateMove(), прежде, чем ходить, если все ок то делает applyMove(), 
 обновляя данные матча, также проверяет, если все клетки заполнены isGameOver() возвращая статус finished для матча */
@@ -23,7 +24,6 @@ export async function makeMove(
   // если валидация пройдена обновление переменных и статуса матча
   const updatedMatch = applyMove(match, playerId, boxId);
 
-  // если игра закончена обновление статуса матча
   if (isGameOver(updatedMatch)) {
     updatedMatch.status = "finished";
     updatedMatch.currentTurn = undefined;
@@ -40,6 +40,11 @@ export async function makeMove(
       );
     } catch (err) {
       console.error("Не удалось обновить matchMeta:", err);
+    }
+
+    const res = await activeSave(updatedMatch);
+    if (!res.ok) {
+      console.error("Failed to save finished match", res.error);
     }
 
     await finalizeMatch(updatedMatch);
@@ -199,15 +204,12 @@ export async function finalizeMatch(match: Match): Promise<void> {
       total,
     );
 
-    await sleep(10000);
+    await rC.expire(`match:${match.id}`, 120);
+    await rC.expire(`matchMeta:${match.id}`, 120);
 
     for (const player of match.players) {
-      console.log("player need be cleaned", player);
-      await clearActiveMatch(player);
+      await rC.expire(`player:${player}:activeMatch`, 120);
     }
-
-    await rC.expire(`match:${match.id}`, 60);
-    await rC.expire(`matchMeta:${match.id}`, 60);
 
     console.log(`Match ${match.id} finalized + deleted in Redis`);
   } catch (error) {
