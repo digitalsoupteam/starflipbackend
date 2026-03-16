@@ -20,5 +20,6 @@ export async function clearActiveMatch(playerId: string) {
   const redisKey = `player:${playerId}:activeMatch`;
 
   console.log("Deleting active match key:", redisKey);
-  await rC.expire(redisKey, 60);
+
+  await rC.del(redisKey);
 }
