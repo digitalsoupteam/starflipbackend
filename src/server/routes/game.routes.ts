@@ -7,7 +7,7 @@ import { getActiveMatch } from "../../services/playerMatch.service";
 
 export const gameRouter = Router();
 
-/* Начать игру */
+/* entiry point */
 gameRouter.post("/join", async (req, res) => {
   try {
     const { playerId, bid, token } = req.body;
@@ -48,7 +48,7 @@ gameRouter.post("/join", async (req, res) => {
   }
 });
 
-/* Получить активный матч по playerId (кошелек пользователя) */
+/* active match by playedId = address */
 gameRouter.get("/match", async (req, res) => {
   try {
     const { playerId } = req.query;
@@ -93,7 +93,7 @@ gameRouter.get("/match", async (req, res) => {
   }
 });
 
-/* Сделать ход */
+/* turn */
 gameRouter.post("/move", async (req, res) => {
   try {
     const { matchId, playerId, boxId, clientMoveId } = req.body;
@@ -142,7 +142,7 @@ gameRouter.post("/move", async (req, res) => {
   }
 });
 
-/* Получить результаты матча (в конце матча) */
+/* get res */
 gameRouter.get("/result/:matchId", async (req, res) => {
   try {
     const { matchId } = req.params;

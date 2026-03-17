@@ -1,4 +1,4 @@
-/* Восстановление, реконекты */
+/* Recovery, reconnections */
 
 import { rC } from "../storage/activeStorage";
 import { getActiveMatch, clearActiveMatch } from "./playerMatch.service";
@@ -9,7 +9,7 @@ export type ResumeResult =
   | { ok: true; match: Match }
   | { ok: false; reason: "no_active_match" | "match_not_found" };
 
-/* Вернуться в матч, если он еще есть */
+/* Return to the match, if it still exists */
 export async function resumeMatch(
   playerId: string
 ): Promise<ResumeResult> {
@@ -31,7 +31,7 @@ export async function resumeMatch(
     try {
       match = JSON.parse(raw) as Match;
     } catch (e) {
-      // шибка парсинга JSON - матч сломан, очищаем
+      // JSON parsing error - the match is broken, let's clear it
       await clearActiveMatch(playerId);
       return { ok: false, reason: "match_not_found" };
     }
@@ -40,14 +40,14 @@ export async function resumeMatch(
       await saveMatch(match);
     }
 
-    // если матч теперь finished, очищаем активный матч
+    // If the match is now over, clear the active match
     if (match.status === "finished") {
       await clearActiveMatch(playerId);
     }
 
     return { ok: true, match };
   } catch (error) {
-    // Любая другая ошибка Redis
+    // Any other Redis error
     console.error(`Error resuming match for player ${playerId}:`, error);
     await clearActiveMatch(playerId);
     return { ok: false, reason: "match_not_found" };
@@ -57,14 +57,5 @@ export async function resumeMatch(
 
 
 
-/* Кирилл, пример использования для фронта примерно такой:
-
-при старте приложения / реконнекте
-const res = await api.resumeMatch(playerId);
-если получили res => показываем его на экране (значит есть куда рекконнектиться)
-else
-идём в matchmaking
-joinOrCreateMatch(); (значит пользователь не имеет игр, не вылетал, а просто создает матч)
-*/
 
 

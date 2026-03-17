@@ -1,4 +1,4 @@
-/* Активная память, Redis  */
+/* In-memory database, Redis  */
 
 import { createClient } from "redis";
 import { Match } from "../structures/match.struct";
@@ -9,7 +9,7 @@ rC.connect().catch((err) => {
   console.error("Redis connection error", err);
 });
 
-/* Типы для респонсов */
+/* Types for responses */
 export type SaveResult = { ok: true } | { ok: false; error: unknown };
 
 export type GetResult = { ok: true; match: Match } | { ok: false; error: any };
@@ -18,10 +18,10 @@ export type DeleteResult =
   | { ok: true; deleted: boolean }
   | { ok: false; error: unknown };
 
-/* Для синтаксиса */
+/* For syntax */
 const matchKey = (id: Match["id"]) => `match:${id}`;
 
-/* Сохранить в активной памяти игру */
+/* Keep the game in memory */
 export async function activeSave(match: Match): Promise<SaveResult> {
   try {
     await rC.set(matchKey(match.id), JSON.stringify(match), {
@@ -33,7 +33,7 @@ export async function activeSave(match: Match): Promise<SaveResult> {
   }
 }
 
-/* Взять из активной памяти игру */
+/* Load the game from memory */
 export async function activeGet(matchId: string): Promise<GetResult> {
   try {
     const data = await rC.get(matchKey(matchId));
@@ -50,7 +50,7 @@ export async function activeGet(matchId: string): Promise<GetResult> {
   }
 }
 
-/* Удалить из активной памяти игру */
+/* Remove the game from active memory */
 export async function activeDel(matchId: string): Promise<DeleteResult> {
   try {
     const deleted = (await rC.del(matchKey(matchId))) === 1;

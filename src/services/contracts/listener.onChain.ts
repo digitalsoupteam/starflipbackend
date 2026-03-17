@@ -1,6 +1,6 @@
 import { contract } from "./provider.onChain";
 
-/* функция слушает событие match request */
+/* Listen event: match request */
 export function onMatchRequested(callback: (event: any) => void) {
 contract.on('MatchRequested', (player, token, amount, referrer, event) => {
 callback({

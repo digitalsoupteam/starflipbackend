@@ -1,4 +1,4 @@
-// Движок игры
+/* game engine */
 
 import { Match, Box, MoveResult } from "../structures/match.struct";
 import { randomizePool } from "../utils/random";
@@ -8,20 +8,20 @@ import { clearActiveMatch } from "./playerMatch.service";
 import { rC } from "../storage/activeStorage";
 import { activeSave } from "../storage/activeStorage";
 
-/* делает ход, проверяет validateMove(), прежде, чем ходить, если все ок то делает applyMove(), 
-обновляя данные матча, также проверяет, если все клетки заполнены isGameOver() возвращая статус finished для матча */
+/* when turn (1) validateMove(), after (2) applyMove(), 
+checking isGameOver() if True returns finished for match */
 
 export async function makeMove(
   match: Match,
   playerId: string,
   boxId: number,
 ): Promise<MoveResult> {
-  // проверка на ошибку валидации
+  // check validating error
   const error = validateMove(match, playerId, boxId);
   if (error) {
     return { match, error };
   }
-  // если валидация пройдена обновление переменных и статуса матча
+  // if validating done
   const updatedMatch = applyMove(match, playerId, boxId);
 
   if (isGameOver(updatedMatch)) {
@@ -39,7 +39,7 @@ export async function makeMove(
         }),
       );
     } catch (err) {
-      console.error("Не удалось обновить matchMeta:", err);
+      console.error("Cannot update matchMeta:", err);
     }
 
     const res = await activeSave(updatedMatch);
@@ -53,9 +53,9 @@ export async function makeMove(
   return { match: updatedMatch };
 }
 
-/* вспомогательная функция, создает игровое поле в рандомном порядке */
+/* random board*/
 export function createBoard(total: bigint, count: number): Box[] {
-  // создаёт рандомное распределение total монет по count боксам
+
   const values: bigint[] = randomizePool(total, count);
 
   return values.map((value, index) => ({
@@ -63,39 +63,35 @@ export function createBoard(total: bigint, count: number): Box[] {
     value: value.toString(),
   }));
 }
-/* вспомогательная функция, проверяет возможность хода (активные клетки, ход игрока) */
+/* validating to move */
 export function validateMove(
   match: Match,
   playerId: string,
   boxId: number,
 ): string | null {
-  //проверяет, если статус матча не active, значит ходить нельзя
+ 
   if (match.status !== "active") {
     return "match not active";
   }
 
-  //проверяет, если текущий ход не данного игрока, значит ходить нельзя
   if (match.currentTurn !== playerId) {
     return "its not your turn";
   }
 
-  //проверяет, данный бокс не существует, значит ходить по нему нельзя
   const box = match.board.find((b) => b.id === boxId);
   if (!box) {
     return "box was not found";
   }
 
-  //проверяет, данный бокс открыт, значит ходить по нему нельзя
 
   if (box.openedBy) {
     return "box is already open";
   }
 
-  // если все проверки пройдены
   return null;
 }
 
-/* вспомогательная функция, применяет ход и обновляет статус матча, если все проверки пройдены */
+/* helper function that takes a move and updates the match status if all checks pass */
 export function applyMove(
   match: Match,
   playerId: string,
@@ -127,12 +123,12 @@ export function applyMove(
     boardHash: hashBoard(board),
   };
 }
-/* вспомогательная функция, проверяет, открыто ли все поле, что является концом игры в случае true */
+/* helper function that checks whether all fields are open; if true, the game ends */
 export function isGameOver(match: Match): boolean {
   return match.board.every((box) => box.openedBy !== undefined);
 }
 
-/* вспомогательная функция, возвращает результаты матча */
+/* helper function that returns the match results */
 export function getGameResult(match: Match) {
   const entries = Object.entries(match.balances);
 
@@ -143,7 +139,7 @@ export function getGameResult(match: Match) {
   const b1 = BigInt(p1[1]);
   const b2 = BigInt(p2[1]);
 
-  // победил игрок 1
+  // Player 1 won
   if (b1 > b2) {
     return {
       winner: p1[0],
@@ -152,7 +148,7 @@ export function getGameResult(match: Match) {
     };
   }
 
-  // победил игрок 2
+  // Player 2 won
   if (b2 > b1) {
     return {
       winner: p2[0],
@@ -161,7 +157,7 @@ export function getGameResult(match: Match) {
     };
   }
 
-  // ничья
+  // draw
   return {
     draw: true,
     balances: match.balances,
@@ -182,7 +178,7 @@ export async function finalizeMatch(match: Match): Promise<void> {
       balances[addr] = BigInt(match.balances[addr] ?? "0");
     }
 
-    // 🔒 Проверка целостности банка
+    // Bank integrity check
     const total = BigInt(match.total);
 
     const sum = Object.values(match.balances).reduce(
@@ -196,7 +192,7 @@ export async function finalizeMatch(match: Match): Promise<void> {
       );
     }
 
-    // отправка результата в контракт
+    // Send the result to the contract
     await finishMatch_onContract(
       Number(match.onChainId),
       match.players,

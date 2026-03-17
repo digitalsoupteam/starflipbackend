@@ -3,6 +3,7 @@ import { PvPGridArtifact } from "./PvPGridABI";
 import { joinOrCreateMatch } from "../matchMaking.service";
 import "dotenv/config";
 
+/* searching finind matches on contract to start game */ 
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS!;
 const RPC_HTTPS = process.env.RPC_HTTPS!;
 const PvPGridABI = (PvPGridArtifact as any)[0].abi;

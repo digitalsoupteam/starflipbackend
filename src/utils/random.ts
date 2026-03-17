@@ -15,7 +15,6 @@ export function randomizePool(
     const cellsLeft = count - i;
     const minRemainingForOthers = BigInt(cellsLeft - 1);
 
-    // безопасный максимум — не больше maxPerCell и не меньше 1n
     let allowedMax = remaining - minRemainingForOthers;
     allowedMax = allowedMax > maxPerCell ? maxPerCell : allowedMax;
 
@@ -28,12 +27,10 @@ export function randomizePool(
     remaining -= value;
   }
 
-  // последняя клетка получает остаток, но если она превышает maxPerCell, дробим оставшийся пул
   if (remaining > maxPerCell) {
     result.push(maxPerCell);
     remaining -= maxPerCell;
 
-    // оставшийся остаток раскидываем по предыдущим клеткам, чтобы не превышать maxPerCell
     for (let i = 0; remaining > 0n && i < result.length; i++) {
       const add = remaining + result[i] > maxPerCell ? maxPerCell - result[i] : remaining;
       result[i] += add;
@@ -43,7 +40,6 @@ export function randomizePool(
     result.push(remaining);
   }
 
-  // перемешиваем
   for (let i = result.length - 1; i > 0; i--) {
     const randomBuffer = new Uint32Array(1);
     crypto.getRandomValues(randomBuffer);

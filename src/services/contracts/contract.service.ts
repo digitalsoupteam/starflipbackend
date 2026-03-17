@@ -1,7 +1,7 @@
 import { contract } from "./provider.onChain";
 import { rC } from "../../storage/activeStorage";
 
-/* Функция создания матча, когда найдена пара игроков */
+/* make match onChain */
 export async function createMatch_onContract(
   player1: string,
   player2: string,
@@ -23,10 +23,11 @@ export async function createMatch_onContract(
     .map((log: any) => contract.interface.parseLog(log))
     .find((parsedLog: any) => parsedLog?.name === "MatchCreated");
 
-  return Number(event?.args[0]); // айдишник матча в контакте (помещаем в обьект)
+  return Number(event?.args[0]); // id on contract NOT same as id on BACK
 }
 
-/* завершаем матч */ export async function finishMatch_onContract(
+/* endMatch */ 
+export async function finishMatch_onContract(
   matchId: number,
   players: string[],
   balances: { [playerAddress: string]: bigint },
@@ -61,13 +62,13 @@ export async function createMatch_onContract(
   await tx.wait();
 }
 
-/* отмена матча с возвратом средств если хакончился TTL активного матча  */
+/* if TTL expiered cancelMatch to delete match on contract */
 export async function cancelMatch_onContract(matchId: string) {
   try {
     const metaRaw = await rC.get(`matchMeta:${matchId}`);
 
     if (!metaRaw) {
-      console.log(`matchMeta для ${matchId} не найден`);
+      console.log(`matchMeta for ${matchId} not found`);
       return;
     }
 
@@ -75,19 +76,19 @@ export async function cancelMatch_onContract(matchId: string) {
     const onChainId = meta.onChainId;
 
     if (!onChainId) {
-      console.log(`Матч ${matchId} не имеет onChainId`);
+      console.log(`match ${matchId} have no onChainId`);
       return;
     }
 
     const tx = await contract.cancelMatch(onChainId);
-    console.log(`Транзакция отправлена: ${tx.hash}`);
+    console.log(`Transaction sent: ${tx.hash}`);
 
     await tx.wait();
-    console.log(`Матч ${matchId} отменен на контракте`);
+    console.log(`Match ${matchId} canceled on contract succesfully`);
 
     await rC.del(`matchMeta:${matchId}`);
-    console.log(`matchMeta:${matchId} удален из Redis`);
+    console.log(`matchMeta:${matchId} deleted from Redis`);
   } catch (error) {
-    console.error("Ошибка cancelMatch_onContract:", error);
+    console.error("Error cancelMatch_onContract:", error);
   }
 }

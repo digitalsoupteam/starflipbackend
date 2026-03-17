@@ -10,7 +10,7 @@ export async function generateId(): Promise<string> {
       id += Math.floor(Math.random() * 10);
     }
 
-    // Проверяем, есть ли такой матч в Redis
+    // Is match in redis?
     const waiting = await rC.exists(`waiting:match:${id}`);
     const active = await rC.exists(`match:${id}`);
     exists = !!waiting || !!active;

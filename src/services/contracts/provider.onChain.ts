@@ -1,4 +1,3 @@
-// provider.onChain.ts
 import { ethers } from "ethers";
 import { PvPGridArtifact } from "./PvPGridABI";
 import "dotenv/config";

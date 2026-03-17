@@ -8,10 +8,10 @@ jest.setTimeout(120_000);
 
 describe("Cancel FINDMATCH() on chain for both wallets", () => {
   it("should cancel finding match for both players", async () => {
-    // создаём provider напрямую
+  
     const provider = new ethers.JsonRpcProvider(process.env.RPC_HTTPS);
 
-    // создаём кошельки напрямую
+    
     const wallets = [
       new ethers.Wallet(process.env.ADDRESS1_PRIVATKEY!, provider),
       new ethers.Wallet(process.env.ADDRESS2_PRIVATKEY!, provider),
@@ -24,7 +24,6 @@ describe("Cancel FINDMATCH() on chain for both wallets", () => {
       const wallet = wallets[i];
       const playerNumber = i + 1;
 
-      // создаём независимый экземпляр контракта для каждого кошелька
       const contractInstance = new ethers.Contract(CONTRACT_ADDRESS, abi, wallet);
 
       try {
@@ -40,7 +39,6 @@ describe("Cancel FINDMATCH() on chain for both wallets", () => {
           console.warn(`Player ${playerNumber} cancel transaction failed.`);
         }
       } catch (error: any) {
-        // если нет матча — тоже нормально
         if (error.message && error.message.includes("No match found")) {
           console.log(`Player ${playerNumber} had no match to cancel.`);
         } else {

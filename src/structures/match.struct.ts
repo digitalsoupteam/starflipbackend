@@ -1,41 +1,36 @@
-/* Структура матча и сопутствующих сущностей */
-
-/* игрокая клетка и ее свойства */ 
 export interface Box {
 id: number, 
-value: string, // поинты внутри клетки
-openedBy?: string // кто открыл клетку
+value: string, 
+openedBy?: string 
 }
 
-/* структура матча */
 export interface Match {
-  id: string                   // id-шник матча в бекенд системе
-  onChainId?: string,           // id-шникик матча в контракте
+  id: string                   
+  onChainId?: string,           // id from contract 
 
-  token?: string                   // ETH
-  createdAt: number;              // timestamp создания
-  creator: string;                // создатель матча (players[0])
+  token?: string                   // ETH for start 
+  createdAt: number;              
+  creator: string;                
 
-  players: string[];              // [player1] | [player1, player2]
+  players: string[];             
 
-  bid: string;                    // ставка одного игрока
-  total: string;                  // общая сумма (bid * 2)
-  count: number;                  // количество клеток (у нас базово 12)
+  bid: string;                    
+  total: string;                  // (bid * 2)
+  count: number;                  // static 12
 
-  board: Box[];                   // игровое поле (пустое в waiting)
-  boardHash?: string;            // хеш поля
-  balances: Record<string, string>; // балансы игроков
+  board: Box[];                   
+  boardHash?: string;            
+  balances: Record<string, string>; 
 
-  currentTurn?: string;           // чей ход (только при active)
-  lastMoveId?: string;           // новый апдейт, для того, чтобы при дисконнекте не потерять был ли ход или не был
-  turnStartedAt: number;        // новый апдейт,таймштамп хода, чтобы поставить таймлефт под ход
+  currentTurn?: string;           
+  lastMoveId?: string;           
+  turnStartedAt: number;        
 
 
   status: 'waiting' | 'active' | 'finished'; //status 
 }
 
 
-/* cтруктура результата хода */
 export interface MoveResult {
   match?: Match
   error?: string

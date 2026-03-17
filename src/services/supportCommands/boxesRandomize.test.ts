@@ -7,11 +7,11 @@ describe("randomizePool for ETH amounts with logs", () => {
 
   const weiToEth = (wei: bigint) => Number(wei) / 1e18;
 
-  test("сумма всех клеток равна total", () => {
+  test("sum of boxes = total", () => {
     const pool = randomizePool(total, count, maxPercent);
 
     console.log(
-      "Сумма и распределение клеток:",
+      "Summ and pool:",
       pool.map((v) => v.toString()),
     );
 
@@ -19,11 +19,11 @@ describe("randomizePool for ETH amounts with logs", () => {
     expect(sum).toBe(total);
   });
 
-  test("ни одна клетка не превышает maxPercent", () => {
+  test("NO one box > maxPercent", () => {
     const pool = randomizePool(total, count, maxPercent);
 
     console.log(
-      "Максимальная проверка, клетки:",
+      "boxes:",
       pool.map((v) => v.toString()),
     );
 
@@ -34,7 +34,7 @@ describe("randomizePool for ETH amounts with logs", () => {
     });
   });
 
-  test("рандомизация работает — разные вызовы дают разные результаты", () => {
+  test("randomize is good — diffent calls = diff results", () => {
     const pool1 = randomizePool(total, count, maxPercent);
     const pool2 = randomizePool(total, count, maxPercent);
 
@@ -46,11 +46,11 @@ describe("randomizePool for ETH amounts with logs", () => {
     expect(identical).toBe(false);
   });
 
-  test("все клетки ≥ 1 wei", () => {
+  test("every box ≥ 1 wei", () => {
     const pool = randomizePool(total, count, maxPercent);
 
     console.log(
-      "Проверка ≥ 1 wei:",
+      "Check ≥ 1 wei:",
       pool.map((v) => v.toString()),
     );
 
@@ -59,11 +59,11 @@ describe("randomizePool for ETH amounts with logs", () => {
     });
   });
 
-  test("симуляция: 2 игрока выбирают по 6 клеток", () => {
+  test("Simulating: 2 players took 6 boxes", () => {
     const pool = randomizePool(total, count, maxPercent);
 
     console.log(
-      "Все клетки:",
+      "Boxes:",
       pool.map((v) => v.toString()),
     );
 
@@ -74,18 +74,18 @@ describe("randomizePool for ETH amounts with logs", () => {
     const sum2 = player2.reduce((a, b) => a + b, 0n);
 
     console.log(
-      "Игрок 1 клетки:",
+      "Pl 1 boexs:",
       player1.map((v) => v.toString()),
     );
-    console.log("Игрок 1 сумма wei:", sum1.toString());
-    console.log("Игрок 1 сумма ETH:", weiToEth(sum1));
+    console.log("Pl 1 sum wei:", sum1.toString());
+    console.log("Pl 1 sum ETH:", weiToEth(sum1));
 
     console.log(
-      "Игрок 2 клетки:",
+      "Pl 2 boxes:",
       player2.map((v) => v.toString()),
     );
-    console.log("Игрок 2 сумма wei:", sum2.toString());
-    console.log("Игрок 2 сумма ETH:", weiToEth(sum2));
+    console.log("Pl 2 sum wei:", sum2.toString());
+    console.log("Pl 2 sum ETH:", weiToEth(sum2));
 
     expect(sum1 + sum2).toBe(total);
   });
