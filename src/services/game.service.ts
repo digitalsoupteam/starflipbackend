@@ -7,6 +7,7 @@ import { finishMatch_onContract } from "./contracts/contract.service";
 import { clearActiveMatch } from "./playerMatch.service";
 import { rC } from "../storage/activeStorage";
 import { activeSave } from "../storage/activeStorage";
+import { updatePlayersStatsWithRank } from "../storage/saveToSql";
 
 /* when turn (1) validateMove(), after (2) applyMove(), 
 checking isGameOver() if True returns finished for match */
@@ -55,7 +56,6 @@ export async function makeMove(
 
 /* random board*/
 export function createBoard(total: bigint, count: number): Box[] {
-
   const values: bigint[] = randomizePool(total, count);
 
   return values.map((value, index) => ({
@@ -69,7 +69,6 @@ export function validateMove(
   playerId: string,
   boxId: number,
 ): string | null {
- 
   if (match.status !== "active") {
     return "match not active";
   }
@@ -82,7 +81,6 @@ export function validateMove(
   if (!box) {
     return "box was not found";
   }
-
 
   if (box.openedBy) {
     return "box is already open";
@@ -168,31 +166,32 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function finalizeMatch(match: Match): Promise<void> {
   try {
-    if (!match.onChainId) {
-      throw new Error(`Match ${match.id} no onChainId`);
-    }
+    if (!match.onChainId) throw new Error(`Match ${match.id} no onChainId`);
 
     const balances: { [player: string]: bigint } = {};
+    let winner = match.players[0];
+    let maxBalance = BigInt(match.balances[winner] ?? "0");
 
     for (const addr of match.players) {
-      balances[addr] = BigInt(match.balances[addr] ?? "0");
+      const bal = BigInt(match.balances[addr] ?? "0");
+      balances[addr] = bal;
+
+      if (bal > maxBalance) {
+        maxBalance = bal;
+        winner = addr;
+      }
     }
 
-    // Bank integrity check
     const total = BigInt(match.total);
-
     const sum = Object.values(match.balances).reduce(
       (acc, v) => acc + BigInt(v),
       0n,
     );
-
-    if (sum !== total) {
+    if (sum !== total)
       throw new Error(
         `Balance mismatch: sum=${sum.toString()} total=${total.toString()}`,
       );
-    }
 
-    // Send the result to the contract
     await finishMatch_onContract(
       Number(match.onChainId),
       match.players,
@@ -200,14 +199,19 @@ export async function finalizeMatch(match: Match): Promise<void> {
       total,
     );
 
+    // update actual sql
+
+    const stats = updatePlayersStatsWithRank(match.players, winner);
+
+    console.log(`Match ${match.id} finalized, winner: ${winner}`);
+    console.table(stats); // для наглядности
+
+    // Очистка Redis
     await rC.expire(`match:${match.id}`, 120);
     await rC.expire(`matchMeta:${match.id}`, 120);
-
     for (const player of match.players) {
       await rC.expire(`player:${player}:activeMatch`, 120);
     }
-
-    console.log(`Match ${match.id} finalized + deleted in Redis`);
   } catch (error) {
     console.error(`finalise error ${match.id}:`, error);
     throw error;

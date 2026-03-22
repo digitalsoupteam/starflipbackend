@@ -4,6 +4,8 @@ import { getMatch, moveInMatch } from "../../services/match.service";
 import { getGameResult } from "../../services/game.service";
 import { resumeMatch } from "../../services/resumeMatch.service";
 import { getActiveMatch } from "../../services/playerMatch.service";
+import { db } from "../../storage/sqlLite";
+import { PlayerRecord, getRank } from "../../storage/saveToSql";
 
 export const gameRouter = Router();
 
@@ -225,6 +227,31 @@ gameRouter.post("/resume", async (req, res) => {
       },
     });
   } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+gameRouter.get("/player/:address/stats", async (req, res) => {
+  try {
+    const address = req.params.address?.toLowerCase();
+    if (!address) return res.status(400).json({ error: "address is required" });
+
+    const record = db
+      .prepare("SELECT * FROM players WHERE address = ?")
+      .get(address) as PlayerRecord | undefined;
+
+    if (!record) return res.status(404).json({ error: "player not found" });
+
+    const rank = getRank(record.games, record.wins);
+
+    res.json({
+      address: record.address,
+      games: record.games,
+      wins: record.wins,
+      rank,
+    });
+  } catch (error: any) {
+    console.error(error);
     res.status(500).json({ error: error.message });
   }
 });

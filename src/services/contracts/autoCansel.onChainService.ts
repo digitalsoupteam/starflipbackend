@@ -1,6 +1,7 @@
 import { rC, activeGet } from "../../storage/activeStorage";
 import { cancelMatch_onContract } from "./contract.service";
 
+/* automatic cancel match if _____ */
 export async function initRedisExpiredListener() {
   const sub = rC.duplicate();
   await sub.connect();

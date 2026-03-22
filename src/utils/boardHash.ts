@@ -1,6 +1,7 @@
 /* Hashing */
 import crypto from 'crypto';
 import { Box } from '../structures/match.struct';
+import { DefaultDeserializer } from 'v8';
 
 function serializeBoard(board: Box[]): string {
   return board
