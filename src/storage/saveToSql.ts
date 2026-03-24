@@ -4,6 +4,7 @@ export interface PlayerRecord {
   address: string;
   games: number;
   wins: number;
+  points: number;
 }
 
 const RANKS = [
@@ -24,14 +25,15 @@ export function getRank(games: number, wins: number) {
 
 export function updatePlayersStatsWithRank(players: string[], winner: string) {
   const insertStmt = db.prepare(`
-    INSERT INTO players (address, games, wins)
-    VALUES (@address, @games, @wins)
+    INSERT INTO players (address, games, wins, points)
+    VALUES (@address, @games, @wins, @points)
   `);
 
   const updateStmt = db.prepare(`
     UPDATE players
     SET games = games + 1,
-        wins = wins + @winIncrement
+        wins = wins + @winIncrement,
+        points = points + @pointsIncrement
     WHERE address = @address
   `);
 
@@ -39,21 +41,29 @@ export function updatePlayersStatsWithRank(players: string[], winner: string) {
 
   const transaction = db.transaction(() => {
     for (const addr of players) {
-
       const record = selectStmt.get(addr) as PlayerRecord | undefined;
       const isWinner = addr.toLowerCase() === winner.toLowerCase();
       const winIncrement = isWinner ? 1 : 0;
+      const pointsIncrement = isWinner ? 30 : 10;
 
       if (!record) {
-        insertStmt.run({ address: addr, games: 1, wins: winIncrement });
+        insertStmt.run({ 
+          address: addr, 
+          games: 1, 
+          wins: winIncrement,
+          points: pointsIncrement
+        });
       } else {
-        updateStmt.run({ address: addr, winIncrement });
+        updateStmt.run({ 
+          address: addr, 
+          winIncrement, 
+          pointsIncrement 
+        });
       }
     }
   });
 
   transaction();
-
 
   const stats = players.map(addr => {
     const record = selectStmt.get(addr) as PlayerRecord;
@@ -61,6 +71,7 @@ export function updatePlayersStatsWithRank(players: string[], winner: string) {
       address: record.address,
       games: record.games,
       wins: record.wins,
+      points: record.points,
       rank: getRank(record.games, record.wins),
     };
   });

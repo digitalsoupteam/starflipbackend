@@ -248,6 +248,7 @@ gameRouter.get("/player/:address/stats", async (req, res) => {
       address: record.address,
       games: record.games,
       wins: record.wins,
+      points: record.points ?? 0,
       rank,
     });
   } catch (error: any) {

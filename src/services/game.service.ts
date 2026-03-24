@@ -204,7 +204,7 @@ export async function finalizeMatch(match: Match): Promise<void> {
     const stats = updatePlayersStatsWithRank(match.players, winner);
 
     console.log(`Match ${match.id} finalized, winner: ${winner}`);
-    console.table(stats); // для наглядности
+    console.table(stats); 
 
     // Очистка Redis
     await rC.expire(`match:${match.id}`, 120);
