@@ -10,4 +10,4 @@ async function cancelMatch(id: string) {
   } catch (error) {console.error(error)}
 }
 
-cancelMatch("124")
+cancelMatch("151")
