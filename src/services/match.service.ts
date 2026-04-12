@@ -2,8 +2,9 @@
 
 import { Match, MoveResult } from "../structures/match.struct";
 import { makeMove } from "./game.service";
-import { rC, activeSave, GetResult } from "../storage/activeStorage";
+import { rC, activeSave, GetResult } from "../storage/activeMatchesStorage";
 import { setActiveMatch } from "./playerMatch.service";
+
 
 /* creates an “instance” of a single match */
 export function startMatch(match: Match): Match {
@@ -33,13 +34,12 @@ export async function startAndSaveMatch(match: Match): Promise<Match> {
   }
 
   // Save a copy of the match for loading after TTL
-  const matchMetaKey = `matchMeta:${newMatch.id}`;
+  const matchMetaKey = `matchMeta:${newMatch.matchId}`;
   try {
     await rC.set(
       matchMetaKey,
       JSON.stringify({
-        matchId: newMatch.id,
-        onChainId: newMatch.onChainId ?? null,
+        matchId: newMatch.matchId,
         status: newMatch.status,
       }),
     );
@@ -48,7 +48,7 @@ export async function startAndSaveMatch(match: Match): Promise<Match> {
   }
 
   for (const p of newMatch.players) {
-    await setActiveMatch(p, newMatch.id);
+    await setActiveMatch(p, newMatch.matchId);
   }
   return newMatch;
 }
@@ -58,7 +58,7 @@ export async function saveMatch(match: Match): Promise<boolean> {
   const res = await activeSave(match);
 
   if (!res.ok) {
-    console.error(`Redis save error (match ${match.id})`, res.error);
+    console.error(`Redis save error (match ${match.matchId})`, res.error);
     return false;
   }
 
@@ -135,7 +135,7 @@ export async function moveInMatch(
       const saved = await saveMatch(result.match);
       if (saved) {
         for (const p of result.match.players) {
-          await setActiveMatch(p, result.match.id);
+          await setActiveMatch(p, result.match.matchId);
         }
       }
       if (!saved) {

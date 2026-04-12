@@ -1,7 +1,7 @@
 /* Hashing */
 import crypto from 'crypto';
 import { Box } from '../structures/match.struct';
-import { DefaultDeserializer } from 'v8';
+
 
 function serializeBoard(board: Box[]): string {
   return board
@@ -10,7 +10,7 @@ function serializeBoard(board: Box[]): string {
     .join('|'); 
 }
 
-export function hashBoard(board: Box[]): string {
+export function matchBoardHashing(board: Box[]): string {
   const serialized = serializeBoard(board); // String type "0:50|1:200|2:100"
   return crypto.createHash('sha256').update(serialized).digest('hex');
 } 

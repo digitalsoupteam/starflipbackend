@@ -1,4 +1,4 @@
-export function randomizePool(
+export function matchPoolRandomize(
   total: bigint,
   count: number,
   maxPercent: number = 25

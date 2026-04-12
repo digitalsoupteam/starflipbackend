@@ -1,6 +1,6 @@
-import { rC } from "../storage/activeStorage";
+import { rC } from "../storage/activeMatchesStorage";
 
-export async function generateId(): Promise<string> {
+export async function matchIdGenerate(): Promise<string> {
   let id: string;
   let exists: boolean;
 

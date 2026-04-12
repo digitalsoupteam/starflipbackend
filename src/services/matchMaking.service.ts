@@ -1,12 +1,17 @@
 /* Search for and create a partner for the game */
 
 import { Match } from "../structures/match.struct";
-import { generateId } from "../utils/idGenerate";
-import { rC } from "../storage/activeStorage";
+import { matchIdGenerate } from "../utils/matchIdGenerate";
+import { rC } from "../storage/activeMatchesStorage";
 import { startAndSaveMatch } from "./match.service";
-import { createMatch_onContract } from "./contracts/contract.service";
-import { hashBoard } from "../utils/boardHash";
+import { matchBoardHashing } from "../utils/matchBoardHashing";
 import { createBoard } from "./game.service";
+import {
+  findPlayerById,
+  withdrawBalance,
+} from "../storage/playersDataBaseActions";
+
+const MIN_BALANCE = 1_000_000_000_000_000n; // bid availible for start match
 
 /* Type for the Lua script below */
 type MatchAction =
@@ -103,6 +108,19 @@ export async function joinOrCreateMatch(
   bid: string,
   token: string,
 ): Promise<Match> {
+  const player = findPlayerById(playerId);
+  if (!player) {
+    throw new Error(`Player ${playerId} not found`);
+  }
+
+  const playerBalance = BigInt(player.playerBalance ?? "0");
+  const bidAmount = BigInt(bid);
+
+  if (playerBalance < MIN_BALANCE || playerBalance < bidAmount) {
+    throw new Error(
+      `Player ${playerId} has insufficient balance: ${playerBalance} wei`,
+    );
+  }
   const maxAttempts = 200;
   const initialWaitTime = 20;
 
@@ -128,7 +146,7 @@ export async function joinOrCreateMatch(
       const match = await joinWaitingMatch(playerId, action.matchId, token);
       if (match) {
         console.log(
-          `Player ${playerId} joined match ${match.id} on attempt ${attempt + 1}`,
+          `Player ${playerId} joined match ${match.matchId} on attempt ${attempt + 1}`,
         );
         return match;
       }
@@ -141,7 +159,7 @@ export async function joinOrCreateMatch(
       try {
         const match = await createWaitingMatch(playerId, bid);
         console.log(
-          `Player ${playerId} created match ${match.id} on attempt ${attempt + 1}`,
+          `Player ${playerId} created match ${match.matchId} on attempt ${attempt + 1}`,
         );
         return match;
       } catch (error) {
@@ -154,7 +172,7 @@ export async function joinOrCreateMatch(
       }
     }
 
-    // If need to wait 
+    // If need to wait
     let waitTime = initialWaitTime;
 
     // Increase the delay exponentially if we've been waiting a long time
@@ -205,7 +223,7 @@ export async function createWaitingMatch(
   // Check if this player has already created a match
   const playerLockKey = `player:creating:${playerId}`;
   const playerLocked = await rC.set(playerLockKey, "1", {
-    NX: true, 
+    NX: true,
     PX: 3000, // TTL: 3000 ms (3 seconds) to prevent a player from creating multiple matches
   });
   console.log(
@@ -216,11 +234,13 @@ export async function createWaitingMatch(
   }
 
   try {
-    const id = await generateId();
+    withdrawBalance(playerId, bid);
+
+    const matchId = await matchIdGenerate();
     const bidBig = BigInt(bid);
 
     const match: Match = {
-      id,
+      matchId,
       createdAt: Date.now(),
       creator: playerId,
       players: [playerId],
@@ -233,20 +253,19 @@ export async function createWaitingMatch(
       turnStartedAt: 0,
     };
 
-    
     const multi = rC.multi();
 
-    console.log(`Player ${playerId} created match ${match.id}`);
+    console.log(`Player ${playerId} created match ${match.matchId}`);
 
     // If a player leaves, the match will be automatically deleted after X  minutes
-    multi.set(`waiting:match:${match.id}`, JSON.stringify(match), {
+    multi.set(`waiting:match:${match.matchId}`, JSON.stringify(match), {
       EX: 3000,
     });
 
     // Add the match ID to the sorted list of pending matches
     multi.zAdd("waiting:matches", {
       score: Date.now(),
-      value: match.id,
+      value: match.matchId,
     });
 
     // Release the global lock on match creation
@@ -272,7 +291,7 @@ export async function joinWaitingMatch(
 
   // Lock the connection to a specific match
   const locked = await rC.set(lockKey, lockValue, {
-    NX: true, 
+    NX: true,
     PX: 2000, // TTL: 1000 ms (1 second) to block the match during connection
   });
 
@@ -326,26 +345,11 @@ export async function joinWaitingMatch(
     );
 
     const board = createBoard(BigInt(match.bid) * 2n, 12);
-    const boardHash = hashBoard(board);
-
-    console.log("Creating on-chain match...");
-    try {
-      const onChainId = await Promise.race([
-        createMatch_onContract(match.players[0], playerId, token, boardHash),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("on-chain timeout")), 15000),
-        ),
-      ]);
-      console.log("On-chain match created:", onChainId);
-
-      match.onChainId = onChainId;
-    } catch (error) {
-      console.error("Match creation error:", error);
-      throw error;
-    }
+    const boardHash = matchBoardHashing(board);
 
     match.players.push(playerId);
     match.balances[playerId] = "0";
+    withdrawBalance(playerId, match.bid);
     console.log(`Player ${playerId} successfully joined match ${match.id}`);
     match.status = "active";
     match.board = board;

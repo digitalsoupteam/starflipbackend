@@ -1,12 +1,12 @@
 /* Which player is in which match */
 
-import { rC } from "../storage/activeStorage";
+import { rC } from "../storage/activeMatchesStorage";
 
 const key = (playerId: string) => `player:${playerId}:activeMatch`;
 
 /* Saves the player with playedId in the match with matchId to Redis */
 export async function setActiveMatch(playerId: string, matchId: string) {
-  await rC.set(key(playerId), matchId, { EX: 86400 }); 
+  await rC.set(key(playerId), matchId, { EX: 43200 }); 
 }
 
 /* Queries Redis: “Which match is player123 currently in?” */

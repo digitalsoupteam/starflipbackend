@@ -1,11 +1,9 @@
 import dns from "dns";
 dns.setDefaultResultOrder("ipv4first");
 
-import 'dotenv/config';
-import { startServer } from './server/server';
-import { startPollingMatches } from "./services/contracts/pollingFindMatch.onChain";
-import { initRedisExpiredListener } from './services/contracts/autoCansel.onChainService';
+import "dotenv/config";
+import { startServer } from "./server/server";
+import { startAfkWatcher } from "./services/afk.service";
 
 startServer();
-initRedisExpiredListener().catch(console.error);
-startPollingMatches();
+startAfkWatcher();

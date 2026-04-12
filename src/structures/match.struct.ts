@@ -5,10 +5,9 @@ openedBy?: string
 }
 
 export interface Match {
-  id: string                   
-  onChainId?: string,           // id from contract 
 
-  token?: string                   // ETH for start 
+  matchId: string;
+                   
   createdAt: number;              
   creator: string;                
 
@@ -26,8 +25,7 @@ export interface Match {
   lastMoveId?: string;           
   turnStartedAt: number;        
 
-
-  status: 'waiting' | 'active' | 'finished'; //status 
+  status: 'waiting' | 'active' | 'finished';  
 }
 
 

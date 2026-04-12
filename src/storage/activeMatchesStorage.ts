@@ -19,13 +19,13 @@ export type DeleteResult =
   | { ok: false; error: unknown };
 
 /* For syntax */
-const matchKey = (id: Match["id"]) => `match:${id}`;
+const matchKey = (id: Match["matchId"]) => `match:${id}`;
 
 /* Keep the game in memory */
 export async function activeSave(match: Match): Promise<SaveResult> {
   try {
-    await rC.set(matchKey(match.id), JSON.stringify(match), {
-      EX: 7200,
+    await rC.set(matchKey(match.matchId), JSON.stringify(match), {
+      EX: 43200,
     });
     return { ok: true };
   } catch (error) {

@@ -1,13 +1,11 @@
 /* game engine */
 
 import { Match, Box, MoveResult } from "../structures/match.struct";
-import { randomizePool } from "../utils/random";
-import { hashBoard } from "../utils/boardHash";
-import { finishMatch_onContract } from "./contracts/contract.service";
-import { clearActiveMatch } from "./playerMatch.service";
-import { rC } from "../storage/activeStorage";
-import { activeSave } from "../storage/activeStorage";
-import { updatePlayersStatsWithRank } from "../storage/saveToSql";
+import { rC } from "../storage/activeMatchesStorage";
+import { activeSave } from "../storage/activeMatchesStorage";
+import { updatePlayersStatsWithRank } from "../storage/playersDataBaseActions";
+import { matchPoolRandomize } from "../utils/matchPoolRandomize";
+import { matchBoardHashing } from "../utils/matchBoardHashing";
 
 /* when turn (1) validateMove(), after (2) applyMove(), 
 checking isGameOver() if True returns finished for match */
@@ -29,13 +27,12 @@ export async function makeMove(
     updatedMatch.status = "finished";
     updatedMatch.currentTurn = undefined;
 
-    const matchMetaKey = `matchMeta:${updatedMatch.id}`;
+    const matchMetaKey = `matchMeta:${updatedMatch.matchId}`;
     try {
       await rC.set(
         matchMetaKey,
         JSON.stringify({
-          matchId: updatedMatch.id,
-          onChainId: updatedMatch.onChainId ?? null,
+          matchId: updatedMatch.matchId,
           status: updatedMatch.status,
         }),
       );
@@ -56,7 +53,7 @@ export async function makeMove(
 
 /* random board*/
 export function createBoard(total: bigint, count: number): Box[] {
-  const values: bigint[] = randomizePool(total, count);
+  const values: bigint[] = matchPoolRandomize(total, count);
 
   return values.map((value, index) => ({
     id: index,
@@ -118,7 +115,7 @@ export function applyMove(
     board,
     balances,
     currentTurn: nextPlayer,
-    boardHash: hashBoard(board),
+    boardHash: matchBoardHashing(board),
   };
 }
 /* helper function that checks whether all fields are open; if true, the game ends */
@@ -126,94 +123,51 @@ export function isGameOver(match: Match): boolean {
   return match.board.every((box) => box.openedBy !== undefined);
 }
 
-/* helper function that returns the match results */
-export function getGameResult(match: Match) {
-  const entries = Object.entries(match.balances);
-
-  if (entries.length !== 2) return null;
-
-  const [p1, p2] = entries;
-
-  const b1 = BigInt(p1[1]);
-  const b2 = BigInt(p2[1]);
-
-  // Player 1 won
-  if (b1 > b2) {
-    return {
-      winner: p1[0],
-      loser: p2[0],
-      balances: match.balances,
-    };
-  }
-
-  // Player 2 won
-  if (b2 > b1) {
-    return {
-      winner: p2[0],
-      loser: p1[0],
-      balances: match.balances,
-    };
-  }
-
-  // draw
-  return {
-    draw: true,
-    balances: match.balances,
-  };
-}
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 export async function finalizeMatch(match: Match): Promise<void> {
   try {
-    if (!match.onChainId) throw new Error(`Match ${match.id} no onChainId`);
-
-    const balances: { [player: string]: bigint } = {};
+    const balances: Record<string, bigint> = {};
     let winner = match.players[0];
     let maxBalance = BigInt(match.balances[winner] ?? "0");
 
-    for (const addr of match.players) {
-      const bal = BigInt(match.balances[addr] ?? "0");
-      balances[addr] = bal;
+    for (const playerId of match.players) {
+      const bal = BigInt(match.balances[playerId] ?? "0");
+      balances[playerId] = bal;
 
       if (bal > maxBalance) {
         maxBalance = bal;
-        winner = addr;
+        winner = playerId;
       }
     }
 
-    const total = BigInt(match.total);
+    const total = BigInt(match.total ?? "0");
     const sum = Object.values(match.balances).reduce(
       (acc, v) => acc + BigInt(v),
       0n,
     );
-    if (sum !== total)
+    if (sum !== total) {
       throw new Error(
         `Balance mismatch: sum=${sum.toString()} total=${total.toString()}`,
       );
+    }
 
-    await finishMatch_onContract(
-      Number(match.onChainId),
-      match.players,
-      balances,
-      total,
+    updatePlayersStatsWithRank(match.players, winner, match.balances);
+
+    console.log(`Match ${match.matchId} finalized, winner: ${winner}`);
+    console.table(
+      match.players.map((p) => ({
+        playerId: p,
+        result: balances[p].toString(),
+      })),
     );
 
-    // update actual sql
-
-    const stats = updatePlayersStatsWithRank(match.players, winner);
-
-    console.log(`Match ${match.id} finalized, winner: ${winner}`);
-    console.table(stats); 
-
-    // Очистка Redis
-    await rC.expire(`match:${match.id}`, 120);
-    await rC.expire(`matchMeta:${match.id}`, 120);
-    for (const player of match.players) {
-      await rC.expire(`player:${player}:activeMatch`, 120);
+    const expireSec = 120;
+    await rC.expire(`match:${match.matchId}`, expireSec);
+    await rC.expire(`matchMeta:${match.matchId}`, expireSec);
+    for (const playerId of match.players) {
+      await rC.expire(`player:${playerId}:activeMatch`, expireSec);
     }
   } catch (error) {
-    console.error(`finalise error ${match.id}:`, error);
+    console.error(`finalizeMatch error ${match.matchId}:`, error);
     throw error;
   }
 }

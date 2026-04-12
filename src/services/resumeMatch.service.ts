@@ -1,6 +1,6 @@
 /* Recovery, reconnections */
 
-import { rC } from "../storage/activeStorage";
+import { rC } from "../storage/activeMatchesStorage";
 import { getActiveMatch, clearActiveMatch } from "./playerMatch.service";
 import { Match } from "../structures/match.struct";
 import { saveMatch } from "./match.service";
