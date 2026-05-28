@@ -4,25 +4,22 @@ import {
   loginOrSignWithTelegram,
 } from "./playerSignOrLogin";
 import "dotenv/config";
+
 const JWT_SECRET = process.env.JWT_SECRET!;
 
-export function loginWithTelegram(telegramId: string) {
-  const player = loginOrSignWithTelegram(telegramId);
-
+export function loginWithTelegram(telegramId: string, referralCode?: string) {
+  const player = loginOrSignWithTelegram(telegramId, referralCode);
   const token = jwt.sign({ playerId: player.playerId }, JWT_SECRET, {
     expiresIn: "20m",
   });
-
   return { token, player };
 }
 
-export function loginWithGoogle(googleId: string) {
-  const player = loginOrSignWithGoogle(googleId);
-
+export function loginWithGoogle(googleId: string, referralCode?: string) {
+  const player = loginOrSignWithGoogle(googleId, referralCode);
   const token = jwt.sign({ playerId: player.playerId }, JWT_SECRET, {
     expiresIn: "20m",
   });
-
   return { token, player };
 }
 

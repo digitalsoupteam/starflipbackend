@@ -1,5 +1,3 @@
-/* Recovery, reconnections */
-
 import { rC } from "../storage/activeMatchesStorage";
 import { getActiveMatch, clearActiveMatch } from "./playerMatch.service";
 import { Match } from "../structures/match.struct";
@@ -9,7 +7,6 @@ export type ResumeResult =
   | { ok: true; match: Match }
   | { ok: false; reason: "no_active_match" | "match_not_found" };
 
-/* Return to the match, if it still exists */
 export async function resumeMatch(
   playerId: string
 ): Promise<ResumeResult> {
@@ -30,8 +27,8 @@ export async function resumeMatch(
     let match: Match;
     try {
       match = JSON.parse(raw) as Match;
-    } catch (e) {
-      // JSON parsing error - the match is broken, let's clear it
+    } catch {
+      // Corrupt data — clear and bail
       await clearActiveMatch(playerId);
       return { ok: false, reason: "match_not_found" };
     }
@@ -40,14 +37,12 @@ export async function resumeMatch(
       await saveMatch(match);
     }
 
-    // If the match is now over, clear the active match
     if (match.status === "finished") {
       await clearActiveMatch(playerId);
     }
 
     return { ok: true, match };
   } catch (error) {
-    // Any other Redis error
     console.error(`Error resuming match for player ${playerId}:`, error);
     await clearActiveMatch(playerId);
     return { ok: false, reason: "match_not_found" };

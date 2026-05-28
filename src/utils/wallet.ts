@@ -5,7 +5,7 @@ import "dotenv/config";
 const ALGORITHM = "aes-256-cbc";
 const ENCRYPTION_KEY = Buffer.from(process.env.ENCRYPTION_KEY!, "hex");
 
-/* Шифруем privateKey перед записью в БД */
+/* AES-256-CBC; IV is prepended as hex before the colon */
 export function encryptPrivateKey(privateKey: string): string {
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
@@ -16,7 +16,6 @@ export function encryptPrivateKey(privateKey: string): string {
   return `${iv.toString("hex")}:${encrypted.toString("hex")}`;
 }
 
-/* Расшифровываем privateKey только когда нужно подписать транзакцию */
 export function decryptPrivateKey(encryptedPrivateKey: string): string {
   const [ivHex, encryptedHex] = encryptedPrivateKey.split(":");
   const iv = Buffer.from(ivHex, "hex");
@@ -29,7 +28,6 @@ export function decryptPrivateKey(encryptedPrivateKey: string): string {
   return decrypted.toString("utf8");
 }
 
-/* Генерируем новый ETH кошелёк */
 export function generateWallet(): {
   address: string;
   encryptedPrivateKey: string;

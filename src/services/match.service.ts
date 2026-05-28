@@ -1,12 +1,8 @@
-/* Start match, Save, Apply moves */
-
 import { Match, MoveResult } from "../structures/match.struct";
 import { makeMove } from "./game.service";
 import { rC, activeSave, GetResult } from "../storage/activeMatchesStorage";
 import { setActiveMatch } from "./playerMatch.service";
 
-
-/* creates an “instance” of a single match */
 export function startMatch(match: Match): Match {
   if (match.players.length !== 2) {
     throw new Error("You need to wait for the second player to join before you can start.");
@@ -23,7 +19,6 @@ export function startMatch(match: Match): Match {
   };
 }
 
-/* Async wrapper: creates a match and saves it */
 export async function startAndSaveMatch(match: Match): Promise<Match> {
   const newMatch = startMatch(match);
 
@@ -33,7 +28,7 @@ export async function startAndSaveMatch(match: Match): Promise<Match> {
     console.error("The match could not be saved", saveRes.error);
   }
 
-  // Save a copy of the match for loading after TTL
+  // matchMeta survives the main match TTL -- used by resume flow
   const matchMetaKey = `matchMeta:${newMatch.matchId}`;
   try {
     await rC.set(
@@ -53,7 +48,6 @@ export async function startAndSaveMatch(match: Match): Promise<Match> {
   return newMatch;
 }
 
-/* Save the current state of the match */
 export async function saveMatch(match: Match): Promise<boolean> {
   const res = await activeSave(match);
 
@@ -65,18 +59,16 @@ export async function saveMatch(match: Match): Promise<boolean> {
   return true;
 }
 
-/* Get the current match status */
 export async function getMatch(matchId: string): Promise<GetResult> {
   try {
     const data = await rC.get(`match:${matchId}`);
-    if (!data) return { ok: false, error: "not_found" }; // if no data is available, ok: false
-    return { ok: true, match: JSON.parse(data) as Match }; // There's definitely a match here
+    if (!data) return { ok: false, error: "not_found" };
+    return { ok: true, match: JSON.parse(data) as Match };
   } catch (error) {
     return { ok: false, error: "storage_error" };
   }
 }
 
-/* Apply move to match */
 export async function moveInMatch(
   matchId: string,
   playerId: string,
@@ -86,13 +78,12 @@ export async function moveInMatch(
   const lockKey = `match:${matchId}:lock`;
   const cooldownKey = `player:${playerId}:cooldown`;
 
-  // Check if the player is in the waiting period
   const isCoolingDown = await rC.get(cooldownKey);
   if (isCoolingDown) {
     return { error: "too fast, wait for your turn" };
   }
 
-  // Trying to get a lock on the match
+  // 3-second distributed lock prevents concurrent moves on the same match
   const locked = await rC.set(lockKey, "1", { NX: true, PX: 3000 });
   if (!locked) {
     return { error: "match is busy" };
@@ -114,13 +105,14 @@ export async function moveInMatch(
       return { error: "clientMoveId required" };
     }
 
+    // Idempotent: frontend may retry the same move on reconnect
     if (match.lastMoveId === clientMoveId) {
       return { match };
-    } //checking the front for an incoming click
+    }
 
     if (!match.currentTurn || match.currentTurn !== playerId) {
-      // Set a 15-second cooldown for the player   
-     await rC.set(cooldownKey, "1", { PX: 15000 });
+      // Penalize wrong-turn attempts to prevent spam
+      await rC.set(cooldownKey, "1", { PX: 15000 });
       return { error: "its not your turn" };
     }
 
@@ -148,4 +140,3 @@ export async function moveInMatch(
     await rC.del(lockKey);
   }
 }
-

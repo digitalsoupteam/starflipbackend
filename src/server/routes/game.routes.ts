@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { joinOrCreateMatch } from "../../services/matchMaking.service";
+import { joinOrCreateMatch, cancelSearch } from "../../services/matchMaking.service";
 import { getMatch, moveInMatch } from "../../services/match.service";
 import { resumeMatch } from "../../services/resumeMatch.service";
 import { getActiveMatch } from "../../services/playerMatch.service";
@@ -10,24 +10,23 @@ import { refreshToken } from "../../utils/auth/auth";
 import {
   claimFaucet,
   claimDailyPoints,
+  DAILY_POINTS,
 } from "../../storage/playersDataBaseActions";
 
 const IS_MAINNET = process.env.GAME_MODE === "mainnet";
 
 export const gameRouter = Router();
 
-/* Хелпер для форматирования board — не отдаём value закрытых клеток */
+/* value is omitted for closed cells — clients must not know them in advance */
 function formatBoard(match: any) {
   if (match.status === "waiting") return [];
   return match.board.map((box: any) => ({
     id: box.id,
     openedBy: box.openedBy ?? null,
-    // value видно только если клетка открыта
     value: box.openedBy ? box.value : undefined,
   }));
 }
 
-/* Хелпер для форматирования матча — одно место, нет дублирования */
 function formatMatch(match: any) {
   return {
     matchId: match.matchId,
@@ -42,26 +41,22 @@ function formatMatch(match: any) {
   };
 }
 
-/* ===== JOIN — войти в матч или создать новый ===== */
-// authMiddleware проверяет JWT → кладёт playerId в req.playerId
 gameRouter.post("/join", authMiddleware, async (req, res) => {
   try {
     const { bid, token } = req.body;
-    const playerId = req.playerId!; // берём из JWT, не из body — нельзя подменить
+    const playerId = req.playerId!; // from JWT — cannot be spoofed via body
 
     if (!bid || !token) {
       return res.status(400).json({ error: "bid and token are required" });
     }
 
     const match = await joinOrCreateMatch(playerId, String(bid), token);
-
-    // После успешного join — выдаём свежий токен (продлеваем сессию)
     const newToken = refreshToken(playerId);
 
     res.json({
       message:
         match.status === "waiting" ? "waiting for opponent" : "match started",
-      token: newToken, // фронт сохраняет и использует этот токен дальше
+      token: newToken,
       match: formatMatch(match),
     });
   } catch (error: any) {
@@ -69,7 +64,6 @@ gameRouter.post("/join", authMiddleware, async (req, res) => {
   }
 });
 
-/* ===== MATCH — получить текущий матч игрока ===== */
 gameRouter.get("/match", authMiddleware, async (req, res) => {
   try {
     const playerId = req.playerId!;
@@ -95,7 +89,6 @@ gameRouter.get("/match", authMiddleware, async (req, res) => {
   }
 });
 
-/* ===== MOVE — сделать ход ===== */
 gameRouter.post("/move", authMiddleware, async (req, res) => {
   try {
     const { matchId, boxId, clientMoveId } = req.body;
@@ -118,7 +111,6 @@ gameRouter.post("/move", authMiddleware, async (req, res) => {
     if (!result.match)
       return res.status(404).json({ error: "match not found" });
 
-    // После каждого хода — продлеваем токен (игрок активен, не AFK)
     const newToken = refreshToken(playerId);
 
     res.json({
@@ -131,7 +123,6 @@ gameRouter.post("/move", authMiddleware, async (req, res) => {
   }
 });
 
-/* ===== RESULT — результат завершённого матча ===== */
 gameRouter.get("/result/:matchId", authMiddleware, async (req, res) => {
   try {
     const { matchId } = req.params;
@@ -153,7 +144,7 @@ gameRouter.get("/result/:matchId", authMiddleware, async (req, res) => {
       token: newToken,
       match: {
         ...formatMatch(match),
-        // В финальном результате отдаём все значения клеток
+        // Reveal all cell values in the final result
         board: match.board.map((box: any) => ({
           id: box.id,
           openedBy: box.openedBy ?? null,
@@ -166,7 +157,6 @@ gameRouter.get("/result/:matchId", authMiddleware, async (req, res) => {
   }
 });
 
-/* ===== RESUME — восстановить сессию после разрыва ===== */
 gameRouter.post("/resume", authMiddleware, async (req, res) => {
   try {
     const playerId = req.playerId!;
@@ -193,8 +183,46 @@ gameRouter.post("/resume", authMiddleware, async (req, res) => {
   }
 });
 
-/* ===== STATS — статистика игрока ===== */
-// Этот роут публичный — authMiddleware не нужен, смотреть статистику может любой
+gameRouter.post("/cancel", authMiddleware, async (req, res) => {
+  try {
+    const playerId = req.playerId!;
+    const refunded = await cancelSearch(playerId);
+    const newToken = refreshToken(playerId);
+    res.json({
+      message: refunded ? "Search cancelled, bid refunded" : "No active search found",
+      refunded,
+      token: newToken,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+gameRouter.get("/me", authMiddleware, async (req, res) => {
+  try {
+    const playerId = req.playerId!;
+    const record = db
+      .prepare("SELECT * FROM players WHERE playerId = ?")
+      .get(playerId) as PlayerRecord | undefined;
+
+    if (!record) return res.status(404).json({ error: "player not found" });
+
+    const newToken = refreshToken(playerId);
+
+    res.json({
+      token: newToken,
+      player: {
+        playerId: record.playerId,
+        points: record.points ?? 0,
+        balance: record.playerBalance,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* Public — no auth required */
 gameRouter.get("/player/:playerId/stats", async (req, res) => {
   try {
     const { playerId } = req.params;
@@ -221,7 +249,7 @@ gameRouter.get("/player/:playerId/stats", async (req, res) => {
   }
 });
 
-/* ===== FAUCET — бесплатные тестовые токены ===== */
+/* Testnet only — disabled on mainnet */
 gameRouter.post("/faucet", authMiddleware, async (req, res) => {
   if (IS_MAINNET) {
     return res.status(403).json({ error: "Faucet is disabled on mainnet" });
@@ -231,22 +259,22 @@ gameRouter.post("/faucet", authMiddleware, async (req, res) => {
     const result = claimFaucet(playerId);
 
     if (!result.success) {
-      return res.status(429).json({ error: result.reason }); // 429 = Too Many Requests
+      return res.status(429).json({ error: result.reason });
     }
+
+    const pointsResult = claimDailyPoints(playerId);
 
     res.json({
       message: "Tokens claimed successfully",
       balance: result.balance,
+      points: pointsResult.isFirstLogin ? pointsResult.points : undefined,
+      isFirstLogin: pointsResult.isFirstLogin ?? false,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-export const DAILY_POINTS = 30;
-export const FIRST_LOGIN_POINTS = 300;
-
-/* ===== DAILY POINTS — ежедневные поинты ===== */
 gameRouter.post("/claim-points", authMiddleware, async (req, res) => {
   try {
     const playerId = req.playerId!;
@@ -257,11 +285,8 @@ gameRouter.post("/claim-points", authMiddleware, async (req, res) => {
     }
 
     res.json({
-      message: result.isFirstLogin
-        ? `Welcome! You received ${FIRST_LOGIN_POINTS} points`
-        : `Daily points claimed! You received ${DAILY_POINTS} points`,
+      message: `Daily points recieved! You can clame new points tomorrow`,
       points: result.points,
-      isFirstLogin: result.isFirstLogin,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

@@ -1,36 +1,34 @@
 export interface Box {
-id: number, 
-value: string, 
-openedBy?: string 
+  id: number;
+  value: string;
+  openedBy?: string;
 }
 
 export interface Match {
-
   matchId: string;
-                   
-  createdAt: number;              
-  creator: string;                
 
-  players: string[];             
+  createdAt: number;
+  creator: string;
 
-  bid: string;                    
-  total: string;                  // (bid * 2)
-  count: number;                  // static 12
+  players: string[];
 
-  board: Box[];                   
-  boardHash?: string;            
-  balances: Record<string, string>; 
+  bid: string;       // per-player bid (WEI) — full amount deducted from balance
+  fee: string;       // per-player service fee (WEI) = bid * 5% — taken when match starts
+  total: string;     // game pot = (bid - fee) * 2 — what the board distributes
+  count: number;     // static 12
 
-  currentTurn?: string;           
-  lastMoveId?: string;           
-  turnStartedAt: number;        
+  board: Box[];
+  boardHash?: string;
+  balances: Record<string, string>;
 
-  status: 'waiting' | 'active' | 'finished';  
+  currentTurn?: string;
+  lastMoveId?: string;
+  turnStartedAt: number;
+
+  status: "waiting" | "active" | "finished";
 }
-
 
 export interface MoveResult {
-  match?: Match
-  error?: string
+  match?: Match;
+  error?: string;
 }
-

@@ -1,5 +1,3 @@
-/* In-memory database, Redis  */
-
 import { createClient } from "redis";
 import { Match } from "../structures/match.struct";
 
@@ -9,19 +7,14 @@ rC.connect().catch((err) => {
   console.error("Redis connection error", err);
 });
 
-/* Types for responses */
 export type SaveResult = { ok: true } | { ok: false; error: unknown };
-
 export type GetResult = { ok: true; match: Match } | { ok: false; error: any };
-
 export type DeleteResult =
   | { ok: true; deleted: boolean }
   | { ok: false; error: unknown };
 
-/* For syntax */
 const matchKey = (id: Match["matchId"]) => `match:${id}`;
 
-/* Keep the game in memory */
 export async function activeSave(match: Match): Promise<SaveResult> {
   try {
     await rC.set(matchKey(match.matchId), JSON.stringify(match), {
@@ -33,7 +26,6 @@ export async function activeSave(match: Match): Promise<SaveResult> {
   }
 }
 
-/* Load the game from memory */
 export async function activeGet(matchId: string): Promise<GetResult> {
   try {
     const data = await rC.get(matchKey(matchId));
@@ -50,7 +42,6 @@ export async function activeGet(matchId: string): Promise<GetResult> {
   }
 }
 
-/* Remove the game from active memory */
 export async function activeDel(matchId: string): Promise<DeleteResult> {
   try {
     const deleted = (await rC.del(matchKey(matchId))) === 1;

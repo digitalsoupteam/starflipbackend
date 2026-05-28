@@ -1,33 +1,24 @@
-/* src/services/afk.service.ts */
-
 import { rC, activeSave } from "../storage/activeMatchesStorage";
 import { Match } from "../structures/match.struct";
 import { updatePlayersStatsWithRank } from "../storage/playersDataBaseActions";
 
-const AFK_TIMEOUT_MS = 5 * 60 * 1000; // 5 минут
-const CHECK_INTERVAL_MS = 15 * 1000; // проверяем каждые 15 секунд
+const AFK_TIMEOUT_MS = 5 * 60 * 1000;
+const CHECK_INTERVAL_MS = 15 * 1000;
 
-/* 
-  Считаем итоговые балансы при AFK:
-  - afkPlayer    → только то что уже открыл
-  - activePlayer → своё открытое + весь остаток поля (нераскрытые клетки)
-*/
+/* AFK payout: afk player keeps only what they opened; active player takes all remaining cells */
 function calcAfkBalances(
   match: Match,
   afkPlayerId: string,
 ): Record<string, string> {
   const activePlayerId = match.players.find((p) => p !== afkPlayerId)!;
 
-  // Сколько каждый уже открыл
   const afkOpened = BigInt(match.balances[afkPlayerId] ?? "0");
   const activeOpened = BigInt(match.balances[activePlayerId] ?? "0");
 
-  // Сумма нераскрытых клеток
   const unopenedTotal = match.board
     .filter((box) => !box.openedBy)
     .reduce((acc, box) => acc + BigInt(box.value), 0n);
 
-  // Активный игрок забирает своё + весь остаток поля
   const activeTotal = activeOpened + unopenedTotal;
 
   return {
@@ -36,7 +27,6 @@ function calcAfkBalances(
   };
 }
 
-/* Завершение матча по AFK */
 async function finalizeAfkMatch(
   match: Match,
   afkPlayerId: string,
@@ -45,7 +35,6 @@ async function finalizeAfkMatch(
 
   const finalBalances = calcAfkBalances(match, afkPlayerId);
 
-  // Обновляем статус матча
   const finishedMatch: Match = {
     ...match,
     status: "finished",
@@ -53,20 +42,16 @@ async function finalizeAfkMatch(
     balances: finalBalances,
   };
 
-  // Сохраняем финальное состояние в Redis
   await activeSave(finishedMatch);
 
-  // Обновляем matchMeta
   await rC.set(
     `matchMeta:${match.matchId}`,
     JSON.stringify({ matchId: match.matchId, status: "finished" }),
   );
 
-  // Победитель — активный игрок (он не ушёл в AFK)
-  // Записываем статистику и балансы в БД
   updatePlayersStatsWithRank(match.players, activePlayerId, finalBalances);
 
-  // TTL на Redis ключи — 2 минуты, потом сами удалятся
+  // 2-minute TTL — Redis cleans itself up
   const expireSec = 120;
   await rC.expire(`match:${match.matchId}`, expireSec);
   await rC.expire(`matchMeta:${match.matchId}`, expireSec);
@@ -86,7 +71,6 @@ async function finalizeAfkMatch(
   );
 }
 
-/* Проверяем один матч на AFK */
 async function checkMatchAfk(matchId: string): Promise<void> {
   const raw = await rC.get(`match:${matchId}`);
   if (!raw) return;
@@ -98,16 +82,12 @@ async function checkMatchAfk(matchId: string): Promise<void> {
     return;
   }
 
-  // Нас интересуют только активные матчи
   if (match.status !== "active") return;
-
-  // Нет currentTurn — что-то пошло не так, пропускаем
-  if (!match.currentTurn) return;
+  if (!match.currentTurn) return; // shouldn't happen in a valid active match
 
   const elapsed = Date.now() - match.turnStartedAt;
   if (elapsed < AFK_TIMEOUT_MS) return;
 
-  // Игрок чей сейчас ход — AFK
   const afkPlayerId = match.currentTurn;
 
   console.log(
@@ -117,7 +97,6 @@ async function checkMatchAfk(matchId: string): Promise<void> {
   await finalizeAfkMatch(match, afkPlayerId);
 }
 
-/* Запускаем фоновый процесс */
 export function startAfkWatcher(): void {
   console.log(
     `AFK watcher started (timeout=${AFK_TIMEOUT_MS / 1000}s, interval=${CHECK_INTERVAL_MS / 1000}s)`,
@@ -125,8 +104,7 @@ export function startAfkWatcher(): void {
 
   setInterval(async () => {
     try {
-      // Берём все активные матчи из Redis по паттерну match:*
-      // Используем SCAN чтобы не блокировать Redis (в отличие от KEYS)
+      // SCAN instead of KEYS to avoid blocking Redis
       let cursor = "0";
       do {
         const result = await rC.scan(cursor, {
@@ -137,8 +115,7 @@ export function startAfkWatcher(): void {
         cursor = result.cursor;
 
         for (const key of result.keys) {
-          // Пропускаем ключи типа match:123:lock, match:123:join и тп
-          // Нам нужны только match:{matchId} — без двоеточия после matchId
+          // Skip match:123:lock, match:123:join, etc. — only process match:{matchId}
           const parts = key.split(":");
           if (parts.length !== 2) continue;
 

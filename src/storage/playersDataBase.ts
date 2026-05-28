@@ -15,7 +15,29 @@ CREATE TABLE IF NOT EXISTS players (
   lastFaucetAt INTEGER NOT NULL DEFAULT 0,
   lastPointsAt INTEGER NOT NULL DEFAULT 0,
   walletAddress TEXT UNIQUE,
-  encryptedPrivateKey TEXT
+  encryptedPrivateKey TEXT,
+  inviteCode TEXT UNIQUE,
+  referrerId TEXT,
+  referralEthEarned TEXT NOT NULL DEFAULT '0'
 )
 `,
+).run();
+
+// SQLite ALTER TABLE can't add UNIQUE columns — add plain, then enforce via index below
+const existingCols = (
+  db.prepare("PRAGMA table_info(players)").all() as { name: string }[]
+).map((c) => c.name);
+
+for (const [col, def] of [
+  ["inviteCode",          "TEXT"], // UNIQUE enforced via index below
+  ["referrerId",          "TEXT"],
+  ["referralEthEarned",   "TEXT NOT NULL DEFAULT '0'"],
+] as const) {
+  if (!existingCols.includes(col)) {
+    db.prepare(`ALTER TABLE players ADD COLUMN ${col} ${def}`).run();
+  }
+}
+
+db.prepare(
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_players_inviteCode ON players (inviteCode)`
 ).run();
