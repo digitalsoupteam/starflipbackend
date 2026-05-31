@@ -1,6 +1,6 @@
 import { rC, activeSave } from "../storage/activeMatchesStorage";
 import { Match } from "../structures/match.struct";
-import { updatePlayersStatsWithRank } from "../storage/playersDataBaseActions";
+import { updatePlayersStatsWithRank, depositBalance } from "../storage/playersDataBaseActions";
 
 const AFK_TIMEOUT_MS = 5 * 60 * 1000;
 const CHECK_INTERVAL_MS = 15 * 1000;
@@ -71,6 +71,28 @@ async function finalizeAfkMatch(
   );
 }
 
+/* Cleans up a stuck match (no currentTurn) — refunds each unique player their bid */
+async function cleanupStuckMatch(match: Match): Promise<void> {
+  const seen = new Set<string>();
+  for (const playerId of match.players) {
+    if (!seen.has(playerId)) {
+      seen.add(playerId);
+      const count = match.players.filter((p) => p === playerId).length;
+      try {
+        depositBalance(playerId, BigInt(match.bid) * BigInt(count));
+      } catch (err) {
+        console.error(`Stuck match refund error for ${playerId}:`, err);
+      }
+    }
+  }
+  await rC.del(`match:${match.matchId}`);
+  await rC.del(`matchMeta:${match.matchId}`);
+  for (const playerId of seen) {
+    await rC.del(`player:${playerId}:activeMatch`);
+  }
+  console.log(`Stuck match ${match.matchId} cleaned up, refunded ${match.bid} × count to unique players`);
+}
+
 async function checkMatchAfk(matchId: string): Promise<void> {
   const raw = await rC.get(`match:${matchId}`);
   if (!raw) return;
@@ -83,7 +105,17 @@ async function checkMatchAfk(matchId: string): Promise<void> {
   }
 
   if (match.status !== "active") return;
-  if (!match.currentTurn) return; // shouldn't happen in a valid active match
+
+  // No currentTurn means the match is stuck (e.g. player joined their own match).
+  // Clean it up after the AFK timeout so the player isn't blocked forever.
+  if (!match.currentTurn) {
+    const elapsed = Date.now() - match.turnStartedAt;
+    if (elapsed >= AFK_TIMEOUT_MS) {
+      console.log(`Stuck match detected: ${match.matchId}, cleaning up`);
+      await cleanupStuckMatch(match);
+    }
+    return;
+  }
 
   const elapsed = Date.now() - match.turnStartedAt;
   if (elapsed < AFK_TIMEOUT_MS) return;

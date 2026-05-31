@@ -264,6 +264,9 @@ export async function joinWaitingMatch(
     const match: Match = JSON.parse(raw);
     const age = Math.max(0, Date.now() - match.createdAt);
 
+    // Never let the creator join their own waiting match
+    if (match.creator === playerId) return null;
+
     if (match.status !== "waiting" || match.players.length >= 2 || age > 120000) {
       if (match.status === "waiting" && match.players.length < 2 && age < 60000) {
         await rC.zAdd("waiting:matches", { score: Date.now(), value: match.matchId });
