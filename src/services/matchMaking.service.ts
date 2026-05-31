@@ -91,6 +91,9 @@ export async function joinOrCreateMatch(
     );
   }
 
+  // Clear any stale cancel signal from a previous search before starting a new one
+  await rC.del(`player:${playerId}:cancelSearch`);
+
   const maxAttempts = 200;
   const initialWaitTime = 20;
   let totalWaitTime = 0;
