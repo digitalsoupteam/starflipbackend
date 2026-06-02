@@ -8,14 +8,15 @@ const BANNER_URL = `${APP_URL}/assets/game/1.png`;
 const SUPPORT_URL = "https://t.me/StarflipSupport";
 
 const DAILY_CAPTION =
-  `⭐ *StarFlip* — не забудь забрать ежедневный бонус\\!\n\n` +
-  `🎁 \\+30 PTS ждут тебя сегодня\n` +
-  `🏆 Твои поинты влияют на токен\\-дроп 2026\n\n` +
-  `Заходи и забирай 👇`;
+  `⭐ *StarFlip* — DAILY BOUNS\\!\n\n` +
+  `🎁 \\+30 PTS wait for you today\n` +
+  `🏆 Your points affect your chances of receiving an airdrop
+\n\n` +
+  `Play, earn ETH, collect PTS, and farm for drop👇`;
 
-const PLAY_BUTTON: TelegramBot.InlineKeyboardButton[][] = [[
-  { text: "🎮 Открыть StarFlip", web_app: { url: APP_URL } },
-]];
+const PLAY_BUTTON: TelegramBot.InlineKeyboardButton[][] = [
+  [{ text: "🎮 OPEN StarFlip", web_app: { url: APP_URL } }],
+];
 
 let bot: TelegramBot | null = null;
 
@@ -33,10 +34,11 @@ export function startBot(): void {
     try {
       await bot!.sendPhoto(chatId, BANNER_URL, {
         caption:
-          `👋 Добро пожаловать в *StarFlip*\\!\n\n` +
-          `Соревнуйся с другими игроками, открывай ячейки и забирай ETH\\.\n` +
-          `🏆 Набирай PTS и участвуй в токен\\-дропе 2026\n\n` +
-          `Нажми кнопку ниже чтобы начать 👇`,
+          `👋 Welcome to *StarFlip*\\!\n\n` +
+          `Compete against other players and win ETH\\.\n` +
+          `🏆 Earn PTS and take part in the 2026 token drop\n\n` +
+          `Click the button below to get started 👇`,
+
         parse_mode: "MarkdownV2",
         reply_markup: { inline_keyboard: PLAY_BUTTON },
       });
@@ -49,14 +51,15 @@ export function startBot(): void {
   bot.onText(/\/support/, async (msg) => {
     const chatId = msg.chat.id;
     try {
-      await bot!.sendMessage(chatId,
+      await bot!.sendMessage(
+        chatId,
         `🛠 *Поддержка StarFlip*\n\nЗадай вопрос в нашем чате 👇`,
         {
           parse_mode: "MarkdownV2",
           reply_markup: {
-            inline_keyboard: [[
-              { text: "💬 Открыть поддержку", url: SUPPORT_URL },
-            ]],
+            inline_keyboard: [
+              [{ text: "💬 Открыть поддержку", url: SUPPORT_URL }],
+            ],
           },
         },
       );
@@ -69,10 +72,14 @@ export function startBot(): void {
   cron.schedule("0 12 * * *", async () => {
     console.log("Bot: sending daily reminders...");
 
-    const players = db.prepare(`
+    const players = db
+      .prepare(
+        `
       SELECT telegramId FROM players
       WHERE telegramId IS NOT NULL
-    `).all() as { telegramId: string }[];
+    `,
+      )
+      .all() as { telegramId: string }[];
 
     console.log(`Bot: ${players.length} players to remind`);
 
@@ -84,7 +91,9 @@ export function startBot(): void {
           reply_markup: { inline_keyboard: PLAY_BUTTON },
         });
       } catch {
-        console.log(`Bot: failed to send to ${player.telegramId} (blocked or deactivated)`);
+        console.log(
+          `Bot: failed to send to ${player.telegramId} (blocked or deactivated)`,
+        );
       }
     }
 
