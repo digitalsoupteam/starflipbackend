@@ -36,8 +36,8 @@ export function startBot(): void {
       await bot!.sendPhoto(chatId, BANNER_URL, {
         caption:
           `👋 Welcome to *StarFlip*\\!\n\n` +
-          `Compete against other players and win ETH\\.\n` +
-          `🏆 Earn PTS and take part in the 2026 token drop\n\n` +
+          `Compete against other players for ETH\\.\n` +
+          `🏆 Earn PTS and take part in platform's token airdrop\n\n` +
           `Click the button below to get started 👇`,
 
         parse_mode: "MarkdownV2",
