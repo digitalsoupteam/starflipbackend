@@ -5,6 +5,7 @@ import { db } from "../storage/playersDataBase";
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 const APP_URL = process.env.TG_APP_URL ?? "https://starflip.io";
 const BANNER_URL = `${APP_URL}/assets/game/1.png`;
+const DAILY_BANNER_URL = `${APP_URL}/assets/game/2.png`;
 const SUPPORT_URL = "https://t.me/StarflipSupport";
 
 const DAILY_CAPTION =
@@ -85,7 +86,7 @@ export function startBot(): void {
 
     for (const player of players) {
       try {
-        await bot!.sendPhoto(player.telegramId, BANNER_URL, {
+        await bot!.sendPhoto(player.telegramId, DAILY_BANNER_URL, {
           caption: DAILY_CAPTION,
           parse_mode: "MarkdownV2",
           reply_markup: { inline_keyboard: PLAY_BUTTON },
