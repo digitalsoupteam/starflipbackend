@@ -292,3 +292,54 @@ gameRouter.post("/claim-points", authMiddleware, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+/* GET /game/leaderboard?page=1 — top players by points, 10 per page */
+gameRouter.get("/leaderboard", authMiddleware, (req, res) => {
+  try {
+    const playerId = req.playerId!;
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
+    const limit = 10;
+    const offset = (page - 1) * limit;
+
+    const total = (db.prepare(
+      `SELECT COUNT(*) as cnt FROM players WHERE points > 0`
+    ).get() as any).cnt as number;
+
+    const rows = db.prepare(`
+      SELECT playerId, points, games, wins
+      FROM players
+      WHERE points > 0
+      ORDER BY points DESC, games DESC
+      LIMIT ? OFFSET ?
+    `).all(limit, offset) as { playerId: string; points: number; games: number; wins: number }[];
+
+    const players = rows.map((r, i) => ({
+      rank: offset + i + 1,
+      playerId: r.playerId,
+      points: r.points,
+      games: r.games,
+      wins: r.wins,
+    }));
+
+    const myData = db.prepare(
+      `SELECT points, games, wins FROM players WHERE playerId = ?`
+    ).get(playerId) as any;
+
+    const myRankRow = myData ? (db.prepare(`
+      SELECT COUNT(*) as cnt FROM players
+      WHERE points > ? OR (points = ? AND games > ?)
+    `).get(myData.points, myData.points, myData.games) as any) : null;
+
+    const myRank = myRankRow ? (myRankRow.cnt as number) + 1 : null;
+
+    res.json({
+      players,
+      total,
+      page,
+      limit,
+      myRank: myData ? { rank: myRank, playerId, points: myData.points, games: myData.games, wins: myData.wins } : null,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
