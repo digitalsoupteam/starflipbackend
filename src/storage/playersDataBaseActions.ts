@@ -246,7 +246,7 @@ export function withdrawBalance(playerId: string, amount: string | bigint) {
 
 // ── Faucet / Points ───────────────────────────────────────────────────────────
 
-const FAUCET_AMOUNT = 10_000_000_000_000_000n; // 0.01 ETH in WEI
+const FAUCET_AMOUNT = 1_000_000_000_000_000_000n; // 1 ETH in WEI
 const FAUCET_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24h
 
 export function claimFaucet(playerId: string): {
