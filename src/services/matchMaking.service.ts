@@ -27,8 +27,19 @@ type MatchAction =
 async function getMatchAction(): Promise<MatchAction> {
   const result = await rC.eval(
     `
-    local matchIds = redis.call("ZRANGE", "waiting:matches", 0, 9)
+    -- Pass 1: clean up to 50 stale entries before any count check
+    local all = redis.call("ZRANGE", "waiting:matches", 0, 49)
+    if all and #all > 0 then
+      for i = 1, #all do
+        local mid = all[i]
+        if redis.call("EXISTS", "waiting:match:" .. mid) == 0 then
+          redis.call("ZREM", "waiting:matches", mid)
+        end
+      end
+    end
 
+    -- Pass 2: try to join one of the first 10 live entries
+    local matchIds = redis.call("ZRANGE", "waiting:matches", 0, 9)
     if matchIds and #matchIds > 0 then
       for i = 1, #matchIds do
         local matchId = matchIds[i]
@@ -75,6 +86,22 @@ async function getMatchAction(): Promise<MatchAction> {
 }
 
 export async function joinOrCreateMatch(
+  playerId: string,
+  bid: string,
+  token: string,
+): Promise<Match> {
+  const searchLockKey = `player:${playerId}:searching`;
+  const searchLocked = await rC.set(searchLockKey, "1", { NX: true, EX: 90 });
+  if (!searchLocked) throw new Error("Search already in progress");
+
+  try {
+  return await _joinOrCreateMatch(playerId, bid, token);
+  } finally {
+    await rC.del(searchLockKey).catch(() => {});
+  }
+}
+
+async function _joinOrCreateMatch(
   playerId: string,
   bid: string,
   token: string,
