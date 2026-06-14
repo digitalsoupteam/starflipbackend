@@ -32,6 +32,7 @@ for (const [col, def] of [
   ["inviteCode",          "TEXT"], // UNIQUE enforced via index below
   ["referrerId",          "TEXT"],
   ["referralEthEarned",   "TEXT NOT NULL DEFAULT '0'"],
+  ["lastGameAt",          "INTEGER NOT NULL DEFAULT 0"],
 ] as const) {
   if (!existingCols.includes(col)) {
     db.prepare(`ALTER TABLE players ADD COLUMN ${col} ${def}`).run();

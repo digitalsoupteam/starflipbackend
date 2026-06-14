@@ -188,7 +188,8 @@ export function updatePlayersStatsWithRank(
       games = games + 1,
       wins = wins + @winIncrement,
       points = points + @pointsIncrement,
-      playerBalance = @newBalance
+      playerBalance = @newBalance,
+      lastGameAt = @lastGameAt
     WHERE playerId = @playerId
   `);
 
@@ -207,6 +208,7 @@ export function updatePlayersStatsWithRank(
         winIncrement: isWinner ? 1 : 0,
         pointsIncrement: isWinner ? 30 : 10,
         newBalance: newBalance.toString(),
+        lastGameAt: Date.now(),
       });
     }
   });
