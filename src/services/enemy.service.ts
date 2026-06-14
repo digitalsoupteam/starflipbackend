@@ -22,6 +22,32 @@ function ensureBot(): void {
   }
 }
 
+/* After a server restart the in-memory watchMatch interval is gone but
+   player:bot_001:activeMatch may still point to a finished/orphaned match.
+   Clear it so the bot can pick up new games immediately. */
+async function clearStaleActiveMatch(): Promise<void> {
+  const matchId = await rC.get(`player:${BOT_ID}:activeMatch`);
+  if (!matchId) return;
+
+  const raw = await rC.get(`match:${matchId}`);
+  if (!raw) {
+    await rC.del(`player:${BOT_ID}:activeMatch`);
+    console.log(`[EnemyService] Cleared stale activeMatch key (match ${matchId} not found)`);
+    return;
+  }
+
+  const match = JSON.parse(raw);
+  if (match.status === "finished") {
+    await rC.del(`player:${BOT_ID}:activeMatch`);
+    console.log(`[EnemyService] Cleared finished activeMatch key (match ${matchId})`);
+    return;
+  }
+
+  // Match is still active — resume watching it
+  console.log(`[EnemyService] Resuming watch on existing match ${matchId}`);
+  watchMatch(matchId);
+}
+
 function randomDelay(): Promise<void> {
   const ms = MOVE_MIN_MS + Math.random() * (MOVE_MAX_MS - MOVE_MIN_MS);
   return new Promise((r) => setTimeout(r, ms));
@@ -128,6 +154,8 @@ async function watchMatch(matchId: string): Promise<void> {
 
 export function startEnemyService(): void {
   ensureBot();
-  setInterval(tryJoin, SCAN_INTERVAL_MS);
+  clearStaleActiveMatch().then(() => {
+    setInterval(tryJoin, SCAN_INTERVAL_MS);
+  });
   console.log(`[EnemyService] Started — bot ID: ${BOT_ID}, joins after ${JOIN_AFTER_MS / 1000}s`);
 }
