@@ -7,6 +7,8 @@ const APP_URL = process.env.TG_APP_URL ?? "https://starflip.io";
 const BANNER_URL = `${APP_URL}/assets/game/1.png`;
 const DAILY_BANNER_URL = `${APP_URL}/assets/game/2.png`;
 const COMMUNITY_BANNER_URL = `${APP_URL}/assets/game/astra-wow.jpg`;
+const MORNING_BANNER_URL = `${APP_URL}/assets/game/morning-astra.jpg`;
+const INACTIVE_BANNER_URL = `${APP_URL}/assets/game/astra-24.jpg`;
 const SUPPORT_URL = "https://t.me/StarflipSupport";
 
 const DAILY_CAPTION =
@@ -70,6 +72,65 @@ export function startBot(): void {
     }
   });
 
+  // Every day at 12:00 UTC — morning reminder
+  cron.schedule("0 12 * * *", async () => {
+    console.log("Bot: sending morning reminders...");
+
+    const players = db
+      .prepare(`SELECT telegramId FROM players WHERE telegramId IS NOT NULL`)
+      .all() as { telegramId: string }[];
+
+    for (const player of players) {
+      try {
+        await bot!.sendPhoto(player.telegramId, MORNING_BANNER_URL, {
+          caption:
+            `☀️ A new day has started!\n\n` +
+            `Don't skip your games — jump in, play a couple of rounds and grab those precious PTS 🏆\n\n` +
+            `Every game counts toward your airdrop 👇`,
+          reply_markup: { inline_keyboard: PLAY_BUTTON },
+        });
+      } catch {
+        console.log(`Bot: morning reminder failed for ${player.telegramId}`);
+      }
+    }
+
+    console.log("Bot: morning reminders done");
+  });
+
+  // Every day at 18:00 UTC — inactive players (no game in last 24h)
+  cron.schedule("0 18 * * *", async () => {
+    console.log("Bot: sending inactive player reminders...");
+
+    const threshold = Date.now() - 24 * 60 * 60 * 1000;
+    const players = db
+      .prepare(
+        `SELECT telegramId FROM players
+         WHERE telegramId IS NOT NULL
+           AND lastGameAt > 0
+           AND lastGameAt < ?`,
+      )
+      .all(threshold) as { telegramId: string }[];
+
+    console.log(`Bot: ${players.length} inactive players to remind`);
+
+    for (const player of players) {
+      try {
+        await bot!.sendPhoto(player.telegramId, INACTIVE_BANNER_URL, {
+          caption:
+            `⏰ It's been a while!\n\n` +
+            `PTS are best collected now — so you can celebrate later.\n` +
+            `Don't lose your momentum, play a couple of games today 🎮\n\n` +
+            `Your airdrop share depends on it 👇`,
+          reply_markup: { inline_keyboard: PLAY_BUTTON },
+        });
+      } catch {
+        console.log(`Bot: inactive reminder failed for ${player.telegramId}`);
+      }
+    }
+
+    console.log("Bot: inactive reminders done");
+  });
+
   // Every day at 17:00 UTC — community message
   cron.schedule("0 17 * * *", async () => {
     console.log("Bot: sending community reminders...");
@@ -127,7 +188,7 @@ export function startBot(): void {
     console.log("Bot: daily PTS reminders done");
   });
 
-  console.log("Telegram bot started (polling, community at 17:00 UTC, PTS reminder at 21:00 UTC)");
+  console.log("Telegram bot started (morning 12:00, inactive 18:00, community 17:00, PTS 21:00 UTC)");
 }
 
 export { bot };
