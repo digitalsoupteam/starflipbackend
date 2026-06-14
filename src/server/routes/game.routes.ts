@@ -262,13 +262,10 @@ gameRouter.post("/faucet", authMiddleware, async (req, res) => {
       return res.status(429).json({ error: result.reason });
     }
 
-    const pointsResult = claimDailyPoints(playerId);
-
     res.json({
       message: "Tokens claimed successfully",
       balance: result.balance,
-      points: pointsResult.isFirstLogin ? pointsResult.points : undefined,
-      isFirstLogin: pointsResult.isFirstLogin ?? false,
+      isFirstLogin: false,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -287,6 +284,7 @@ gameRouter.post("/claim-points", authMiddleware, async (req, res) => {
     res.json({
       message: `Daily points recieved! You can clame new points tomorrow`,
       points: result.points,
+      isFirstLogin: result.isFirstLogin ?? false,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
