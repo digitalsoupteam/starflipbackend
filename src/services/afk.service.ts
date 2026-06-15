@@ -51,12 +51,11 @@ async function finalizeAfkMatch(
 
   updatePlayersStatsWithRank(match.players, activePlayerId, finalBalances);
 
-  // 2-minute TTL — Redis cleans itself up
-  const expireSec = 120;
-  await rC.expire(`match:${match.matchId}`, expireSec);
-  await rC.expire(`matchMeta:${match.matchId}`, expireSec);
+  // Short TTL — enough for the frontend to poll the result, then clears immediately
+  await rC.expire(`match:${match.matchId}`, 120);
+  await rC.expire(`matchMeta:${match.matchId}`, 120);
   for (const playerId of match.players) {
-    await rC.expire(`player:${playerId}:activeMatch`, expireSec);
+    await rC.expire(`player:${playerId}:activeMatch`, 15);
   }
 
   console.log(
