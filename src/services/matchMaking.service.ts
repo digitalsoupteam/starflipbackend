@@ -118,6 +118,21 @@ async function _joinOrCreateMatch(
     );
   }
 
+  // If player already has a valid waiting match (pressed Play twice), return it
+  const existingWaitingId = await rC.get(`player:${playerId}:waitingMatch`);
+  if (existingWaitingId) {
+    const existingRaw = await rC.get(`waiting:match:${existingWaitingId}`);
+    if (existingRaw) {
+      const existingMatch: Match = JSON.parse(existingRaw);
+      if (existingMatch.status === "waiting" && existingMatch.creator === playerId) {
+        console.log(`Player ${playerId} already has waiting match ${existingWaitingId}, returning it`);
+        return existingMatch;
+      }
+    }
+    // Stale key — clear it
+    await rC.del(`player:${playerId}:waitingMatch`);
+  }
+
   // Clear any stale cancel signal from a previous search before starting a new one
   await rC.del(`player:${playerId}:cancelSearch`);
 
