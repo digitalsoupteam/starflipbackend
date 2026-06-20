@@ -109,7 +109,7 @@ export async function finalizeMatch(match: Match): Promise<void> {
     updatePlayersStatsWithRank(match.players, winner, match.balances);
     console.log(`Match ${match.matchId} finalized, winner: ${winner}`);
 
-    // 50% of each player's fee goes to their referrer
+    // 50% of each player's fixed integer USDT fee goes to their referrer.
     const feePerPlayer = BigInt(match.fee ?? "0");
     if (feePerPlayer > 0n) {
       for (const playerId of match.players) {
@@ -118,7 +118,7 @@ export async function finalizeMatch(match: Match): Promise<void> {
           const share = feePerPlayer / 2n;
           addReferralReward(player.referrerId, share);
           console.log(
-            `Referral reward: ${player.referrerId} ← ${share} WEI + 5 pts (from ${playerId})`,
+            `Referral reward: ${player.referrerId} ← ${share} USDT + 5 pts (from ${playerId})`,
           );
         }
       }

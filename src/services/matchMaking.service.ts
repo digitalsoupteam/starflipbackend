@@ -10,12 +10,13 @@ import {
   depositBalance,
 } from "../storage/playersDataBaseActions";
 
-const MIN_BALANCE = 1_000_000_000_000_000n; // 0.001 ETH floor
+export const FIXED_BID_USDT = 25n;
+export const FIXED_FEE_USDT = 2n;
+const MIN_BALANCE = FIXED_BID_USDT;
 
-/** 5% service fee — deducted from bid when match starts, not when queuing */
-const FEE_BPS = 5n;
-export function calcFee(bid: bigint): bigint {
-  return (bid * FEE_BPS) / 100n;
+/** Fixed service fee — deducted from each player's bid when match starts. */
+export function calcFee(_bid: bigint): bigint {
+  return FIXED_FEE_USDT;
 }
 
 type MatchAction =
@@ -87,7 +88,7 @@ async function getMatchAction(): Promise<MatchAction> {
 
 export async function joinOrCreateMatch(
   playerId: string,
-  bid: string,
+  bid: string | undefined,
   token: string,
 ): Promise<Match> {
   const searchLockKey = `player:${playerId}:searching`;
@@ -103,18 +104,26 @@ export async function joinOrCreateMatch(
 
 async function _joinOrCreateMatch(
   playerId: string,
-  bid: string,
+  bid: string | undefined,
   token: string,
 ): Promise<Match> {
+  if (token && token !== "USDT") {
+    throw new Error("Only USDT games are supported");
+  }
+
   const player = findPlayerById(playerId);
   if (!player) throw new Error(`Player ${playerId} not found`);
 
   const playerBalance = BigInt(player.playerBalance ?? "0");
-  const bidAmount = BigInt(bid);
+  const bidAmount = FIXED_BID_USDT;
+
+  if (bid !== undefined && String(bid) !== bidAmount.toString()) {
+    throw new Error(`Invalid bid: StarFlip games use a fixed ${bidAmount} USDT bid`);
+  }
 
   if (playerBalance < MIN_BALANCE || playerBalance < bidAmount) {
     throw new Error(
-      `Player ${playerId} has insufficient balance: ${playerBalance} wei`,
+      `Player ${playerId} has insufficient balance: ${playerBalance} USDT`,
     );
   }
 
@@ -165,7 +174,7 @@ async function _joinOrCreateMatch(
     if (action.type === "create") {
       console.log(`Player ${playerId} attempt ${attempt + 1}: create`);
       try {
-        const match = await createWaitingMatch(playerId, bid);
+        const match = await createWaitingMatch(playerId);
         console.log(`Player ${playerId} created match ${match.matchId}`);
         return match;
       } catch (error) {
@@ -189,7 +198,7 @@ async function _joinOrCreateMatch(
     if (totalWaitTime > 8000 && attempt > maxAttempts / 2) {
       console.log(`Player ${playerId} trying force create after ${totalWaitTime}ms`);
       try {
-        const match = await createWaitingMatch(playerId, bid);
+        const match = await createWaitingMatch(playerId);
         return match;
       } catch {}
     }
@@ -197,7 +206,7 @@ async function _joinOrCreateMatch(
 
   try {
     console.log(`Player ${playerId} last resort create`);
-    const match = await createWaitingMatch(playerId, bid);
+    const match = await createWaitingMatch(playerId);
     return match;
   } catch {
     throw new Error(
@@ -209,13 +218,13 @@ async function _joinOrCreateMatch(
 /* Withdraws full bid upfront; fee is baked into match.total when the joiner arrives */
 export async function createWaitingMatch(
   playerId: string,
-  bid: string,
 ): Promise<Match> {
   const playerLockKey = `player:creating:${playerId}`;
   const playerLocked = await rC.set(playerLockKey, "1", { NX: true, PX: 3000 });
   if (!playerLocked) throw new Error(`Player ${playerId} is already creating a match`);
 
   try {
+    const bid = FIXED_BID_USDT.toString();
     withdrawBalance(playerId, bid);
 
     const matchId = await matchIdGenerate();
@@ -275,7 +284,7 @@ export async function cancelSearch(playerId: string): Promise<boolean> {
   }
 
   depositBalance(playerId, match.bid);
-  console.log(`Player ${playerId} cancelled search, refunded ${match.bid} WEI`);
+  console.log(`Player ${playerId} cancelled search, refunded ${match.bid} USDT`);
 
   const multi = rC.multi();
   multi.del(`waiting:match:${matchId}`);

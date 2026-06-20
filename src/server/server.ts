@@ -5,7 +5,7 @@ import cors from "cors";
 
 export function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT ?? 3000);
   app.use(cors({ origin: "*" }));
   app.use(express.json());
   app.use("/game", gameRouter);

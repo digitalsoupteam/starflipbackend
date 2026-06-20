@@ -12,7 +12,7 @@ const BOTS = [
 ];
 const BOT_SET = new Set(BOTS);
 
-const BOT_INITIAL_BALANCE = "2000000000000000000"; // 2 ETH
+const BOT_INITIAL_BALANCE = "4000"; // 4,000 USDT
 const BOT_INITIAL_PTS    = 400;
 const JOIN_AFTER_MS      = 30_000;
 const SCAN_INTERVAL_MS   = 5_000;

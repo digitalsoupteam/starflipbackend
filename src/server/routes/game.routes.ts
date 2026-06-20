@@ -46,11 +46,15 @@ gameRouter.post("/join", authMiddleware, async (req, res) => {
     const { bid, token } = req.body;
     const playerId = req.playerId!; // from JWT — cannot be spoofed via body
 
-    if (!bid || !token) {
-      return res.status(400).json({ error: "bid and token are required" });
+    if (!token) {
+      return res.status(400).json({ error: "token is required" });
     }
 
-    const match = await joinOrCreateMatch(playerId, String(bid), token);
+    const match = await joinOrCreateMatch(
+      playerId,
+      bid === undefined ? undefined : String(bid),
+      String(token),
+    );
     const newToken = refreshToken(playerId);
 
     res.json({
@@ -263,7 +267,7 @@ gameRouter.post("/faucet", authMiddleware, async (req, res) => {
     }
 
     res.json({
-      message: "Tokens claimed successfully",
+      message: "USDT claimed successfully",
       balance: result.balance,
       isFirstLogin: false,
     });

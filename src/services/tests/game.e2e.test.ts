@@ -3,8 +3,8 @@ import { loginWithTelegram } from "../../utils/auth/auth";
 import { depositBalance } from "../../storage/playersDataBaseActions";
 import { rC } from "../../storage/activeMatchesStorage";
 
-const BASE = "http://localhost:3000/game";
-const BID = "1000000000000000"; // 0.001 ETH в wei
+const BASE = process.env.GAME_BASE_URL ?? "http://localhost:3000/game";
+const BID = "25"; // fixed 25 USDT bid
 
 function createPlayer(telegramId: string) {
   const { token, player } = loginWithTelegram(telegramId);
@@ -54,7 +54,7 @@ describe("Game e2e", () => {
     test("Запрос без токена возвращает 401", async () => {
       const res = await axios.post(
         `${BASE}/join`,
-        { bid: BID, token: "ETH" },
+        { bid: BID, token: "USDT" },
         { validateStatus: () => true },
       );
       expect(res.status).toBe(401);
@@ -63,7 +63,7 @@ describe("Game e2e", () => {
     test("Запрос с невалидным токеном возвращает 401", async () => {
       const res = await axios.post(
         `${BASE}/join`,
-        { bid: BID, token: "ETH" },
+        { bid: BID, token: "USDT" },
         {
           headers: { Authorization: "Bearer invalid.token.here" },
           validateStatus: () => true,
@@ -88,7 +88,7 @@ describe("Game e2e", () => {
       expect(record.walletAddress).toBeTruthy();
       expect(record.encryptedPrivateKey).toBeTruthy();
 
-      // Адрес должен быть валидным ETH адресом (0x + 40 hex символов)
+      // Адрес должен быть валидным EVM address (0x + 40 hex символов)
       expect(record.walletAddress).toMatch(/^0x[a-fA-F0-9]{40}$/);
 
       // У двух игроков должны быть разные кошельки
@@ -118,7 +118,7 @@ describe("Game e2e", () => {
     test("Игрок без баланса не может войти в матч", async () => {
       const res = await axios.post(
         `${BASE}/join`,
-        { bid: BID, token: "ETH" },
+        { bid: BID, token: "USDT" },
         { ...auth(player1.token), validateStatus: () => true },
       );
       expect(res.status).toBe(500);
@@ -126,15 +126,15 @@ describe("Game e2e", () => {
     });
 
     test("Пополняем балансы игроков напрямую через БД", () => {
-      depositBalance(player1.playerId, "10000000000000000"); // 0.01 ETH
-      depositBalance(player2.playerId, "10000000000000000");
+      depositBalance(player1.playerId, "200"); // 200 USDT
+      depositBalance(player2.playerId, "200");
     });
 
     test("Два игрока находят друг друга и матч стартует", async () => {
       // Player1 входит первым — создаёт матч со статусом waiting
       const res1 = await axios.post(
         `${BASE}/join`,
-        { bid: BID, token: "ETH" },
+        { bid: BID, token: "USDT" },
         auth(player1.token),
       );
 
@@ -152,7 +152,7 @@ describe("Game e2e", () => {
       // Player2 входит — находит матч Player1
       const res2 = await axios.post(
         `${BASE}/join`,
-        { bid: BID, token: "ETH" },
+        { bid: BID, token: "USDT" },
         auth(player2.token),
       );
 
@@ -288,13 +288,13 @@ describe("Game e2e", () => {
       const afkPlayer1 = createPlayer(`tg_afk_${uid}_1`);
       const afkPlayer2 = createPlayer(`tg_afk_${uid}_2`);
 
-      depositBalance(afkPlayer1.playerId, "10000000000000000");
-      depositBalance(afkPlayer2.playerId, "10000000000000000");
+      depositBalance(afkPlayer1.playerId, "200");
+      depositBalance(afkPlayer2.playerId, "200");
 
       // Player1 создаёт матч
       const r1 = await axios.post(
         `${BASE}/join`,
-        { bid: BID, token: "ETH" },
+        { bid: BID, token: "USDT" },
         auth(afkPlayer1.token),
       );
       expect(r1.data.match.status).toBe("waiting");
@@ -302,7 +302,7 @@ describe("Game e2e", () => {
       // Player2 присоединяется
       const r2 = await axios.post(
         `${BASE}/join`,
-        { bid: BID, token: "ETH" },
+        { bid: BID, token: "USDT" },
         auth(afkPlayer2.token),
       );
       expect(r2.data.match.status).toBe("active");

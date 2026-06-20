@@ -12,9 +12,9 @@ export interface Match {
 
   players: string[];
 
-  bid: string;       // per-player bid (WEI) — full amount deducted from balance
-  fee: string;       // per-player service fee (WEI) = bid * 5% — taken when match starts
-  total: string;     // game pot = (bid - fee) * 2 — what the board distributes
+  bid: string;       // per-player bid in whole USDT — full amount deducted from balance
+  fee: string;       // per-player fixed service fee in whole USDT
+  total: string;     // game pot in whole USDT = (bid - fee) * 2
   count: number;     // static 12
 
   board: Box[];

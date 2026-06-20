@@ -45,11 +45,11 @@ const MORNING_BANNER_PHOTO = botPhoto("morning-astra.jpg");
 const INACTIVE_BANNER_PHOTO = botPhoto("astra-24.jpg");
 
 const DAILY_CAPTION =
-  `⭐ *StarFlip* — DAILY BOUNS\\!\n\n` +
-  `🎁 \\+30 PTS wait for you today\n` +
+  `⭐ *StarFlip* — DAILY BONUS\\!\n\n` +
+  `🎁 \\+30 PTS await you today\n` +
   `🏆 Your points affect your chances of receiving an airdrop
 \n\n` +
-  `Play, earn ETH, collect PTS, and farm for drop👇`;
+  `Play, earn USDT, collect PTS, and farm for drop👇`;
 
 const PLAY_BUTTON: TelegramBot.InlineKeyboardButton[][] = [
   [{ text: "🎮 OPEN StarFlip", web_app: { url: APP_URL } }],
@@ -58,7 +58,7 @@ const PLAY_BUTTON: TelegramBot.InlineKeyboardButton[][] = [
 let bot: TelegramBot | null = null;
 
 export function startBot(): void {
-  if (!BOT_TOKEN) {
+  if (!BOT_TOKEN || BOT_TOKEN === "disabled") {
     console.warn("TELEGRAM_BOT_TOKEN not set — bot disabled");
     return;
   }
@@ -72,7 +72,7 @@ export function startBot(): void {
       await bot!.sendPhoto(chatId, BANNER_PHOTO, {
         caption:
           `👋 Welcome to *StarFlip*\\!\n\n` +
-          `Compete against other players for ETH\\.\n` +
+          `Compete against other players for USDT\\.\n` +
           `🏆 Earn PTS and take part in platform's token airdrop\n\n` +
           `Click the button below to get started 👇`,
 

@@ -11,7 +11,7 @@ export interface PlayerRecord {
   googleId?: string;
   inviteCode?: string;
   referrerId?: string;
-  referralEthEarned?: string;
+  referralUsdtEarned?: string;
 }
 
 const RANKS = [
@@ -88,14 +88,14 @@ export function setReferrer(playerId: string, referrerId: string): boolean {
   return true;
 }
 
-/** +5 pts + 50% of the fee in WEI, credited each time the referred player finishes a game */
+/** +5 pts + 50% of the fixed integer USDT fee, credited each time the referred player finishes a game */
 export function addReferralReward(
   referrerId: string,
   feeShare: bigint,
 ): void {
   const record = db
     .prepare(
-      "SELECT playerBalance, points, referralEthEarned FROM players WHERE playerId = ?",
+      "SELECT playerBalance, points, referralUsdtEarned FROM players WHERE playerId = ?",
     )
     .get(referrerId) as any;
 
@@ -104,17 +104,17 @@ export function addReferralReward(
   const newBalance =
     BigInt(record.playerBalance ?? "0") + feeShare;
   const newPoints = (record.points ?? 0) + 5;
-  const newRefEth =
-    BigInt(record.referralEthEarned ?? "0") + feeShare;
+  const newReferralUsdt =
+    BigInt(record.referralUsdtEarned ?? "0") + feeShare;
 
   db.prepare(`
     UPDATE players
-    SET playerBalance = ?, points = ?, referralEthEarned = ?
+    SET playerBalance = ?, points = ?, referralUsdtEarned = ?
     WHERE playerId = ?
   `).run(
     newBalance.toString(),
     newPoints,
-    newRefEth.toString(),
+    newReferralUsdt.toString(),
     referrerId,
   );
 }
@@ -218,8 +218,17 @@ export function updatePlayersStatsWithRank(
 
 // ── Balance helpers ───────────────────────────────────────────────────────────
 
+function parseWholeUsdt(amount: string | number | bigint): bigint {
+  if (typeof amount === "bigint") return amount;
+  const text = String(amount).trim();
+  if (!/^\d+(\.\d+)?$/.test(text)) {
+    throw new Error(`Invalid USDT amount: ${amount}`);
+  }
+  return BigInt(text.split(".")[0] || "0");
+}
+
 export function depositBalance(playerId: string, amount: string | bigint) {
-  const amt = typeof amount === "string" ? BigInt(amount) : amount;
+  const amt = parseWholeUsdt(amount);
   const record = db
     .prepare(`SELECT playerBalance FROM players WHERE playerId = ?`)
     .get(playerId) as any;
@@ -232,7 +241,7 @@ export function depositBalance(playerId: string, amount: string | bigint) {
 }
 
 export function withdrawBalance(playerId: string, amount: string | bigint) {
-  const amt = typeof amount === "string" ? BigInt(amount) : amount;
+  const amt = parseWholeUsdt(amount);
   const record = db
     .prepare(`SELECT playerBalance FROM players WHERE playerId = ?`)
     .get(playerId) as any;
@@ -248,7 +257,7 @@ export function withdrawBalance(playerId: string, amount: string | bigint) {
 
 // ── Faucet / Points ───────────────────────────────────────────────────────────
 
-const FAUCET_AMOUNT = 1_000_000_000_000_000_000n; // 1 ETH in WEI
+const FAUCET_AMOUNT = 2_000n; // 2,000 test USDT
 const FAUCET_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24h
 
 export function claimFaucet(playerId: string): {
