@@ -257,7 +257,7 @@ export function withdrawBalance(playerId: string, amount: string | bigint) {
 
 // ── Faucet / Points ───────────────────────────────────────────────────────────
 
-const FAUCET_AMOUNT = 2_000n; // 2,000 test USDT
+const FAUCET_AMOUNT = 2_000n; // 2,000 USDT welcome balance
 const FAUCET_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24h
 
 export function claimFaucet(playerId: string): {

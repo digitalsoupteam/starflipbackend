@@ -184,7 +184,7 @@ export function startBot(): void {
       `💬 Players chat — share your experience: https://t.me/+sSD3YAOnzsE4MmEy\n` +
       `🛟 Support — if something's not working: @StarflipSupport\n\n` +
       `We genuinely read everything you write and try to make the game better with every update.\n\n` +
-      `If you've got a friend who'd enjoy a game like this — share your referral link. It helps you (PTS + a cut of their games) and helps us grow with a community we can trust 🙏\n\n` +
+      `If you've got a friend who'd enjoy a game like this — share your referral link. It helps you earn PTS + 50% of their service fee in USDT, and helps us grow with a community we can trust 🙏\n\n` +
       `🎮 Play: @StarFlipGamebot`;
 
     for (const player of players) {
