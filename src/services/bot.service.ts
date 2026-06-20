@@ -1,15 +1,48 @@
 import TelegramBot from "node-telegram-bot-api";
 import cron from "node-cron";
+import fs from "fs";
+import path from "path";
 import { db } from "../storage/playersDataBase";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 const APP_URL = process.env.TG_APP_URL ?? "https://starflip.io";
-const BANNER_URL = `${APP_URL}/assets/game/1.png`;
-const DAILY_BANNER_URL = `${APP_URL}/assets/game/2.png`;
-const COMMUNITY_BANNER_URL = `${APP_URL}/assets/game/astra-wow.jpg`;
-const MORNING_BANNER_URL = `${APP_URL}/assets/game/morning-astra.jpg`;
-const INACTIVE_BANNER_URL = `${APP_URL}/assets/game/astra-24.jpg`;
+const ASSETS_DIR =
+  process.env.TG_ASSETS_DIR ?? "/root/starflip-front/public/assets/game";
 const SUPPORT_URL = "https://t.me/StarflipSupport";
+const DAY_MS = 24 * 60 * 60 * 1000;
+const COMMUNITY_ANCHOR_DAY_UTC =
+  process.env.COMMUNITY_ANCHOR_DAY_UTC ?? "2026-06-17";
+
+function botPhoto(fileName: string): string {
+  const localPath = path.join(ASSETS_DIR, fileName);
+  if (fs.existsSync(localPath)) return localPath;
+  return `${APP_URL}/assets/game/${fileName}`;
+}
+
+function shouldSendCommunityToday(now = new Date()): boolean {
+  const anchor = Date.parse(`${COMMUNITY_ANCHOR_DAY_UTC}T00:00:00.000Z`);
+  if (Number.isNaN(anchor)) {
+    console.warn(
+      `Invalid COMMUNITY_ANCHOR_DAY_UTC=${COMMUNITY_ANCHOR_DAY_UTC}; community reminder disabled`,
+    );
+    return false;
+  }
+
+  const today = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  const daysSinceAnchor = Math.floor((today - anchor) / DAY_MS);
+
+  return daysSinceAnchor >= 0 && daysSinceAnchor % 2 === 0;
+}
+
+const BANNER_PHOTO = botPhoto("1.png");
+const DAILY_BANNER_PHOTO = botPhoto("2.png");
+const COMMUNITY_BANNER_PHOTO = botPhoto("astra-wow.jpg");
+const MORNING_BANNER_PHOTO = botPhoto("morning-astra.jpg");
+const INACTIVE_BANNER_PHOTO = botPhoto("astra-24.jpg");
 
 const DAILY_CAPTION =
   `⭐ *StarFlip* — DAILY BOUNS\\!\n\n` +
@@ -36,7 +69,7 @@ export function startBot(): void {
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     try {
-      await bot!.sendPhoto(chatId, BANNER_URL, {
+      await bot!.sendPhoto(chatId, BANNER_PHOTO, {
         caption:
           `👋 Welcome to *StarFlip*\\!\n\n` +
           `Compete against other players for ETH\\.\n` +
@@ -72,8 +105,8 @@ export function startBot(): void {
     }
   });
 
-  // Every day at 12:00 UTC — morning reminder
-  cron.schedule("0 12 * * *", async () => {
+  // Every day at 10:00 UTC / 13:00 MSK — morning reminder
+  cron.schedule("0 10 * * *", async () => {
     console.log("Bot: sending morning reminders...");
 
     const players = db
@@ -82,7 +115,7 @@ export function startBot(): void {
 
     for (const player of players) {
       try {
-        await bot!.sendPhoto(player.telegramId, MORNING_BANNER_URL, {
+        await bot!.sendPhoto(player.telegramId, MORNING_BANNER_PHOTO, {
           caption:
             `☀️ A new day has started!\n\n` +
             `Don't skip your games — jump in, play a couple of rounds and grab those precious PTS 🏆\n\n` +
@@ -115,7 +148,7 @@ export function startBot(): void {
 
     for (const player of players) {
       try {
-        await bot!.sendPhoto(player.telegramId, INACTIVE_BANNER_URL, {
+        await bot!.sendPhoto(player.telegramId, INACTIVE_BANNER_PHOTO, {
           caption:
             `⏰ It's been a while!\n\n` +
             `PTS are best collected now — so you can celebrate later.\n` +
@@ -131,8 +164,13 @@ export function startBot(): void {
     console.log("Bot: inactive reminders done");
   });
 
-  // Every day at 17:00 UTC — community message
+  // Every other day at 17:00 UTC — community message
   cron.schedule("0 17 * * *", async () => {
+    if (!shouldSendCommunityToday()) {
+      console.log("Bot: skipping community reminders today");
+      return;
+    }
+
     console.log("Bot: sending community reminders...");
 
     const players = db
@@ -151,7 +189,7 @@ export function startBot(): void {
 
     for (const player of players) {
       try {
-        await bot!.sendPhoto(player.telegramId, COMMUNITY_BANNER_URL, {
+        await bot!.sendPhoto(player.telegramId, COMMUNITY_BANNER_PHOTO, {
           caption,
           reply_markup: { inline_keyboard: PLAY_BUTTON },
         });
@@ -175,7 +213,7 @@ export function startBot(): void {
 
     for (const player of players) {
       try {
-        await bot!.sendPhoto(player.telegramId, DAILY_BANNER_URL, {
+        await bot!.sendPhoto(player.telegramId, DAILY_BANNER_PHOTO, {
           caption: DAILY_CAPTION,
           parse_mode: "MarkdownV2",
           reply_markup: { inline_keyboard: PLAY_BUTTON },
@@ -188,7 +226,7 @@ export function startBot(): void {
     console.log("Bot: daily PTS reminders done");
   });
 
-  console.log("Telegram bot started (morning 12:00, inactive 18:00, community 17:00, PTS 21:00 UTC)");
+  console.log("Telegram bot started (morning 10:00 UTC / 13:00 MSK, inactive 18:00, community 17:00, PTS 21:00 UTC)");
 }
 
 export { bot };
