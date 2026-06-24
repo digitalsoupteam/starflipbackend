@@ -3,6 +3,7 @@ import { db } from "../storage/playersDataBase";
 import { findPlayerById } from "../storage/playersDataBaseActions";
 import { joinWaitingMatch } from "./matchMaking.service";
 import { moveInMatch } from "./match.service";
+import { parseUsdtToUnits } from "../utils/usdt";
 
 /** Bot player IDs — UUID format so they look like regular players */
 const BOTS = [
@@ -95,8 +96,8 @@ async function tryJoinForBot(botId: string): Promise<void> {
 
     const bot = findPlayerById(botId);
     if (!bot) continue;
-    const bal = BigInt(bot.playerBalance ?? "0");
-    const bid = BigInt(match.bid ?? "0");
+    const bal = parseUsdtToUnits(bot.playerBalance ?? "0");
+    const bid = parseUsdtToUnits(match.bid ?? "0");
     if (bid === 0n || bal < bid) continue;
 
     console.log(`[EnemyService] ${botId.slice(0, 8)}: joining ${match.matchId} (age ${Math.round(age / 1000)}s)`);

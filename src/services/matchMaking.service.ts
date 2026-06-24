@@ -9,9 +9,11 @@ import {
   withdrawBalance,
   depositBalance,
 } from "../storage/playersDataBaseActions";
+import { formatUsdtUnits, parseUsdtToUnits } from "../utils/usdt";
 
-export const FIXED_BID_USDT = 25n;
-export const FIXED_FEE_USDT = 2n;
+// Monetary constants are stored as integer tenths of USDT.
+export const FIXED_BID_USDT = 150n; // 15 USDT charged per player
+export const FIXED_FEE_USDT = 10n; // 1 USDT service fee per player
 const MIN_BALANCE = FIXED_BID_USDT;
 
 /** Fixed service fee — deducted from each player's bid when match starts. */
@@ -114,16 +116,18 @@ async function _joinOrCreateMatch(
   const player = findPlayerById(playerId);
   if (!player) throw new Error(`Player ${playerId} not found`);
 
-  const playerBalance = BigInt(player.playerBalance ?? "0");
+  const playerBalance = parseUsdtToUnits(player.playerBalance ?? "0");
   const bidAmount = FIXED_BID_USDT;
 
-  if (bid !== undefined && String(bid) !== bidAmount.toString()) {
-    throw new Error(`Invalid bid: StarFlip games use a fixed ${bidAmount} USDT bid`);
+  if (bid !== undefined && parseUsdtToUnits(bid) !== bidAmount) {
+    throw new Error(
+      `Invalid bid: StarFlip games use a fixed ${formatUsdtUnits(bidAmount)} USDT bid`,
+    );
   }
 
   if (playerBalance < MIN_BALANCE || playerBalance < bidAmount) {
     throw new Error(
-      `Player ${playerId} has insufficient balance: ${playerBalance} USDT`,
+      `Player ${playerId} has insufficient balance: ${formatUsdtUnits(playerBalance)} USDT`,
     );
   }
 
@@ -224,11 +228,11 @@ export async function createWaitingMatch(
   if (!playerLocked) throw new Error(`Player ${playerId} is already creating a match`);
 
   try {
-    const bid = FIXED_BID_USDT.toString();
+    const bid = formatUsdtUnits(FIXED_BID_USDT);
     withdrawBalance(playerId, bid);
 
     const matchId = await matchIdGenerate();
-    const bidBig = BigInt(bid);
+    const bidBig = parseUsdtToUnits(bid);
     const fee = calcFee(bidBig);
     const gamePot = bidBig - fee;
 
@@ -238,8 +242,8 @@ export async function createWaitingMatch(
       creator: playerId,
       players: [playerId],
       bid,
-      fee: fee.toString(),
-      total: (gamePot * 2n).toString(), // both players' net bids — what the board distributes
+      fee: formatUsdtUnits(fee),
+      total: formatUsdtUnits(gamePot * 2n), // 28 USDT: both players' net 14 USDT bids
       count: 12,
       board: [],
       balances: { [playerId]: "0" },
@@ -337,7 +341,7 @@ export async function joinWaitingMatch(
 
     withdrawBalance(playerId, match.bid); // fee already baked into match.total by creator
 
-    const board = createBoard(BigInt(match.total), 12);
+    const board = createBoard(parseUsdtToUnits(match.total), 12);
     const boardHash = matchBoardHashing(board);
 
     match.players.push(playerId);

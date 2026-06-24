@@ -1,10 +1,12 @@
 import Database from "better-sqlite3";
+import { formatUsdtUnits, normalizeUsdt } from "../utils/usdt";
 
 export const db = new Database("players.db");
 
 const LEGACY_UNITS_PER_COIN = 1_000_000_000_000_000_000n;
 const USDT_PER_LEGACY_COIN = 2_000n;
-const USDT_BALANCE_VERSION = "USDT_INTEGER_V1";
+const INTEGER_USDT_BALANCE_VERSION = "USDT_INTEGER_V1";
+const USDT_BALANCE_VERSION = "USDT_DECIMAL_1_V2";
 const LEGACY_REFERRAL_EARNED_COL = ["referral", "Eth", "Earned"].join("");
 
 db.prepare(
@@ -61,9 +63,11 @@ db.prepare(
   )`,
 ).run();
 
-function legacyBalanceToWholeUsdt(value: string | null | undefined): string {
+function legacyBalanceToDecimalUsdt(value: string | null | undefined): string {
   const legacyAmount = BigInt(value ?? "0");
-  return ((legacyAmount * USDT_PER_LEGACY_COIN) / LEGACY_UNITS_PER_COIN).toString();
+  const tenths =
+    (legacyAmount * USDT_PER_LEGACY_COIN * 10n) / LEGACY_UNITS_PER_COIN;
+  return formatUsdtUnits(tenths);
 }
 
 const balanceVersion = db
@@ -87,9 +91,15 @@ if (balanceVersion?.value !== USDT_BALANCE_VERSION) {
 
   const migrate = db.transaction(() => {
     for (const row of rows) {
+      const fromIntegerUsdt =
+        balanceVersion?.value === INTEGER_USDT_BALANCE_VERSION;
       update.run(
-        legacyBalanceToWholeUsdt(row.playerBalance),
-        legacyBalanceToWholeUsdt(row.referralUsdtEarned),
+        fromIntegerUsdt
+          ? normalizeUsdt(row.playerBalance)
+          : legacyBalanceToDecimalUsdt(row.playerBalance),
+        fromIntegerUsdt
+          ? normalizeUsdt(row.referralUsdtEarned)
+          : legacyBalanceToDecimalUsdt(row.referralUsdtEarned),
         row.playerId,
       );
     }
@@ -102,5 +112,7 @@ if (balanceVersion?.value !== USDT_BALANCE_VERSION) {
   });
 
   migrate();
-  console.log(`DB migration complete: balances converted to integer USDT (${USDT_BALANCE_VERSION})`);
+  console.log(
+    `DB migration complete: balances support one decimal USDT place (${USDT_BALANCE_VERSION})`,
+  );
 }

@@ -1,5 +1,6 @@
 import { db } from "./playersDataBase";
 import { generateWallet } from "../utils/wallet";
+import { formatUsdtUnits, parseUsdtToUnits } from "../utils/usdt";
 
 export interface PlayerRecord {
   playerId: string;
@@ -88,7 +89,7 @@ export function setReferrer(playerId: string, referrerId: string): boolean {
   return true;
 }
 
-/** +5 pts + 50% of the fixed integer USDT fee, credited each time the referred player finishes a game */
+/** +5 pts + 50% of the USDT fee, credited each time the referred player finishes a game. */
 export function addReferralReward(
   referrerId: string,
   feeShare: bigint,
@@ -102,19 +103,19 @@ export function addReferralReward(
   if (!record) return;
 
   const newBalance =
-    BigInt(record.playerBalance ?? "0") + feeShare;
+    parseUsdtToUnits(record.playerBalance ?? "0") + feeShare;
   const newPoints = (record.points ?? 0) + 5;
   const newReferralUsdt =
-    BigInt(record.referralUsdtEarned ?? "0") + feeShare;
+    parseUsdtToUnits(record.referralUsdtEarned ?? "0") + feeShare;
 
   db.prepare(`
     UPDATE players
     SET playerBalance = ?, points = ?, referralUsdtEarned = ?
     WHERE playerId = ?
   `).run(
-    newBalance.toString(),
+    formatUsdtUnits(newBalance),
     newPoints,
-    newReferralUsdt.toString(),
+    formatUsdtUnits(newReferralUsdt),
     referrerId,
   );
 }
@@ -199,15 +200,15 @@ export function updatePlayersStatsWithRank(
       if (!record) throw new Error(`Player ${playerId} not found`);
 
       const isWinner = playerId === winner;
-      const dbBalance = BigInt(record.playerBalance ?? "0");
-      const matchResult = BigInt(matchBalances[playerId] ?? "0");
+      const dbBalance = parseUsdtToUnits(record.playerBalance ?? "0");
+      const matchResult = parseUsdtToUnits(matchBalances[playerId] ?? "0");
       const newBalance = dbBalance + matchResult;
 
       updateStmt.run({
         playerId,
         winIncrement: isWinner ? 1 : 0,
         pointsIncrement: isWinner ? 30 : 10,
-        newBalance: newBalance.toString(),
+        newBalance: formatUsdtUnits(newBalance),
         lastGameAt: Date.now(),
       });
     }
@@ -218,46 +219,37 @@ export function updatePlayersStatsWithRank(
 
 // ── Balance helpers ───────────────────────────────────────────────────────────
 
-function parseWholeUsdt(amount: string | number | bigint): bigint {
-  if (typeof amount === "bigint") return amount;
-  const text = String(amount).trim();
-  if (!/^\d+(\.\d+)?$/.test(text)) {
-    throw new Error(`Invalid USDT amount: ${amount}`);
-  }
-  return BigInt(text.split(".")[0] || "0");
-}
-
 export function depositBalance(playerId: string, amount: string | bigint) {
-  const amt = parseWholeUsdt(amount);
+  const amt = parseUsdtToUnits(amount);
   const record = db
     .prepare(`SELECT playerBalance FROM players WHERE playerId = ?`)
     .get(playerId) as any;
   if (!record) throw new Error(`Player ${playerId} not found`);
-  const newBalance = BigInt(record.playerBalance ?? "0") + amt;
+  const newBalance = parseUsdtToUnits(record.playerBalance ?? "0") + amt;
   db.prepare(`UPDATE players SET playerBalance = ? WHERE playerId = ?`).run(
-    newBalance.toString(),
+    formatUsdtUnits(newBalance),
     playerId,
   );
 }
 
 export function withdrawBalance(playerId: string, amount: string | bigint) {
-  const amt = parseWholeUsdt(amount);
+  const amt = parseUsdtToUnits(amount);
   const record = db
     .prepare(`SELECT playerBalance FROM players WHERE playerId = ?`)
     .get(playerId) as any;
   if (!record) throw new Error(`Player ${playerId} not found`);
-  const current = BigInt(record.playerBalance ?? "0");
+  const current = parseUsdtToUnits(record.playerBalance ?? "0");
   if (current < amt)
     throw new Error(`Insufficient balance for player ${playerId}`);
   db.prepare(`UPDATE players SET playerBalance = ? WHERE playerId = ?`).run(
-    (current - amt).toString(),
+    formatUsdtUnits(current - amt),
     playerId,
   );
 }
 
 // ── Faucet / Points ───────────────────────────────────────────────────────────
 
-const FAUCET_AMOUNT = 2_000n; // 2,000 USDT welcome balance
+const FAUCET_AMOUNT = 20_000n; // 2,000 USDT in tenths
 const FAUCET_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24h
 
 export function claimFaucet(playerId: string): {
@@ -280,12 +272,13 @@ export function claimFaucet(playerId: string): {
     return { success: false, reason: `Come back in ${remainingHours} hour(s)` };
   }
 
-  const newBalance = BigInt(record.playerBalance ?? "0") + FAUCET_AMOUNT;
+  const newBalance =
+    parseUsdtToUnits(record.playerBalance ?? "0") + FAUCET_AMOUNT;
   db.prepare(
     `UPDATE players SET playerBalance = ?, lastFaucetAt = ? WHERE playerId = ?`,
-  ).run(newBalance.toString(), now, playerId);
+  ).run(formatUsdtUnits(newBalance), now, playerId);
 
-  return { success: true, balance: newBalance.toString() };
+  return { success: true, balance: formatUsdtUnits(newBalance) };
 }
 
 export const DAILY_POINTS = 30;

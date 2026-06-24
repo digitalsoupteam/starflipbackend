@@ -8,6 +8,7 @@ import {
 } from "../storage/playersDataBaseActions";
 import { matchPoolRandomize } from "../utils/matchPoolRandomize";
 import { matchBoardHashing } from "../utils/matchBoardHashing";
+import { formatUsdtUnits, parseUsdtToUnits } from "../utils/usdt";
 
 export async function makeMove(
   match: Match,
@@ -44,7 +45,10 @@ export async function makeMove(
 
 export function createBoard(total: bigint, count: number): Box[] {
   const values: bigint[] = matchPoolRandomize(total, count);
-  return values.map((value, index) => ({ id: index, value: value.toString() }));
+  return values.map((value, index) => ({
+    id: index,
+    value: formatUsdtUnits(value),
+  }));
 }
 
 export function validateMove(
@@ -66,12 +70,12 @@ export function applyMove(match: Match, playerId: string, boxId: number): Match 
   );
 
   const box = board.find((b) => b.id === boxId)!;
-  const boxValue = BigInt(box.value);
-  const currentBalance = BigInt(match.balances[playerId] ?? "0");
+  const boxValue = parseUsdtToUnits(box.value);
+  const currentBalance = parseUsdtToUnits(match.balances[playerId] ?? "0");
 
   const balances = {
     ...match.balances,
-    [playerId]: (currentBalance + boxValue).toString(),
+    [playerId]: formatUsdtUnits(currentBalance + boxValue),
   };
 
   const nextPlayer = match.players.find((p) => p !== playerId);
@@ -92,16 +96,19 @@ export function isGameOver(match: Match): boolean {
 export async function finalizeMatch(match: Match): Promise<void> {
   try {
     let winner = match.players[0];
-    let maxBalance = BigInt(match.balances[winner] ?? "0");
+    let maxBalance = parseUsdtToUnits(match.balances[winner] ?? "0");
 
     for (const playerId of match.players) {
-      const bal = BigInt(match.balances[playerId] ?? "0");
+      const bal = parseUsdtToUnits(match.balances[playerId] ?? "0");
       if (bal > maxBalance) { maxBalance = bal; winner = playerId; }
     }
 
     // Guard: board cell values must sum exactly to match.total
-    const total = BigInt(match.total ?? "0");
-    const sum = Object.values(match.balances).reduce((acc, v) => acc + BigInt(v), 0n);
+    const total = parseUsdtToUnits(match.total ?? "0");
+    const sum = Object.values(match.balances).reduce(
+      (acc, v) => acc + parseUsdtToUnits(v),
+      0n,
+    );
     if (sum !== total) {
       throw new Error(`Balance mismatch: sum=${sum} total=${total}`);
     }
@@ -109,8 +116,8 @@ export async function finalizeMatch(match: Match): Promise<void> {
     updatePlayersStatsWithRank(match.players, winner, match.balances);
     console.log(`Match ${match.matchId} finalized, winner: ${winner}`);
 
-    // 50% of each player's fixed integer USDT fee goes to their referrer.
-    const feePerPlayer = BigInt(match.fee ?? "0");
+    // 50% of each player's service fee goes to their referrer.
+    const feePerPlayer = parseUsdtToUnits(match.fee ?? "0");
     if (feePerPlayer > 0n) {
       for (const playerId of match.players) {
         const player = findPlayerById(playerId);
@@ -118,7 +125,7 @@ export async function finalizeMatch(match: Match): Promise<void> {
           const share = feePerPlayer / 2n;
           addReferralReward(player.referrerId, share);
           console.log(
-            `Referral reward: ${player.referrerId} ← ${share} USDT + 5 pts (from ${playerId})`,
+            `Referral reward: ${player.referrerId} ← ${formatUsdtUnits(share)} USDT + 5 pts (from ${playerId})`,
           );
         }
       }

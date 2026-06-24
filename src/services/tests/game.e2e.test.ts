@@ -4,7 +4,7 @@ import { depositBalance } from "../../storage/playersDataBaseActions";
 import { rC } from "../../storage/activeMatchesStorage";
 
 const BASE = process.env.GAME_BASE_URL ?? "http://localhost:3000/game";
-const BID = "25"; // fixed 25 USDT bid
+const BID = "15"; // fixed 15 USDT charge: 14 to the board + 1 fee
 
 function createPlayer(telegramId: string) {
   const { token, player } = loginWithTelegram(telegramId);
@@ -175,6 +175,9 @@ describe("Game e2e", () => {
       player1.token = getToken(resumeRes);
 
       expect(resumeRes.data.match.status).toBe("active");
+      expect(resumeRes.data.match.bid).toBe("15");
+      expect(resumeRes.data.match.fee).toBe("1");
+      expect(resumeRes.data.match.total).toBe("28");
 
       matchId = createdMatchId;
       console.log("Match started:", matchId);
@@ -277,7 +280,13 @@ describe("Game e2e", () => {
       res.data.match.board.forEach((box: any) => {
         expect(box.value).toBeDefined();
         expect(box.openedBy).toBeDefined();
+        expect(box.value).toMatch(/^\d+(?:\.\d)?$/);
       });
+      const boardTenths = res.data.match.board.reduce(
+        (sum: number, box: any) => sum + Math.round(Number(box.value) * 10),
+        0,
+      );
+      expect(boardTenths).toBe(280);
     });
   });
 

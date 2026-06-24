@@ -1,6 +1,7 @@
 import { rC, activeSave } from "../storage/activeMatchesStorage";
 import { Match } from "../structures/match.struct";
 import { updatePlayersStatsWithRank, depositBalance } from "../storage/playersDataBaseActions";
+import { formatUsdtUnits, parseUsdtToUnits } from "../utils/usdt";
 
 const AFK_TIMEOUT_MS = 5 * 60 * 1000;
 const CHECK_INTERVAL_MS = 15 * 1000;
@@ -12,18 +13,18 @@ function calcAfkBalances(
 ): Record<string, string> {
   const activePlayerId = match.players.find((p) => p !== afkPlayerId)!;
 
-  const afkOpened = BigInt(match.balances[afkPlayerId] ?? "0");
-  const activeOpened = BigInt(match.balances[activePlayerId] ?? "0");
+  const afkOpened = parseUsdtToUnits(match.balances[afkPlayerId] ?? "0");
+  const activeOpened = parseUsdtToUnits(match.balances[activePlayerId] ?? "0");
 
   const unopenedTotal = match.board
     .filter((box) => !box.openedBy)
-    .reduce((acc, box) => acc + BigInt(box.value), 0n);
+    .reduce((acc, box) => acc + parseUsdtToUnits(box.value), 0n);
 
   const activeTotal = activeOpened + unopenedTotal;
 
   return {
-    [afkPlayerId]: afkOpened.toString(),
-    [activePlayerId]: activeTotal.toString(),
+    [afkPlayerId]: formatUsdtUnits(afkOpened),
+    [activePlayerId]: formatUsdtUnits(activeTotal),
   };
 }
 
@@ -78,7 +79,8 @@ async function cleanupStuckMatch(match: Match): Promise<void> {
       seen.add(playerId);
       const count = match.players.filter((p) => p === playerId).length;
       try {
-        depositBalance(playerId, BigInt(match.bid) * BigInt(count));
+        const refund = parseUsdtToUnits(match.bid) * BigInt(count);
+        depositBalance(playerId, formatUsdtUnits(refund));
       } catch (err) {
         console.error(`Stuck match refund error for ${playerId}:`, err);
       }
