@@ -16,7 +16,7 @@ const COMMUNITY_ANCHOR_DAY_UTC =
 function botPhoto(fileName: string): string {
   const localPath = path.join(ASSETS_DIR, fileName);
   if (fs.existsSync(localPath)) return localPath;
-  return `${APP_URL}/assets/game/${fileName}`;
+  return `${APP_URL}/assets/game/${encodeURIComponent(fileName)}`;
 }
 
 function shouldSendCommunityToday(now = new Date()): boolean {
@@ -43,6 +43,7 @@ const DAILY_BANNER_PHOTO = botPhoto("2.png");
 const COMMUNITY_BANNER_PHOTO = botPhoto("astra-wow.jpg");
 const MORNING_BANNER_PHOTO = botPhoto("morning-astra.jpg");
 const INACTIVE_BANNER_PHOTO = botPhoto("astra-24.jpg");
+const MONEY_MODE_BANNER_PHOTO = botPhoto("moneyrain copy.jpg");
 
 const DAILY_CAPTION =
   `⭐ *StarFlip* — DAILY BONUS\\!\n\n` +
@@ -54,6 +55,20 @@ const DAILY_CAPTION =
 const PLAY_BUTTON: TelegramBot.InlineKeyboardButton[][] = [
   [{ text: "🎮 OPEN StarFlip", web_app: { url: APP_URL } }],
 ];
+
+const MONEY_MODE_CAPTION =
+  `FROM 1st of July: moneyMode on\n\n` +
+  `From first day of July you will be able to switch [testMode] / [moneyMode] any time \n\n` +
+  `On moneyMode:\n` +
+  `— you can deposit / withdraw USDT\n` +
+  `— play only with people who on moneyMode too \n` +
+  `— all games on moneyMode will be with real USDT\n` +
+  `— if your referral play matches on moneyMode you receive 50% service fees to your balance \n` +
+  `— Point system will be the same between [moneyMode] and [testMode]\n\n` +
+  `USE REFFERAL LINK INTO DASHBOARD TO INVITE YOUR FRIENDS AND TAKE 50% SERVICE FEES\n\n` +
+  `🎮 Play: @StarFlipGamebot\n` +
+  `📢 Chat: https://t.me/+sSD3YAOnzsE4MmEy\n` +
+  `💬 Support: @StarflipSupport`;
 
 let bot: TelegramBot | null = null;
 
@@ -201,6 +216,28 @@ export function startBot(): void {
     console.log("Bot: community reminders done");
   });
 
+  // Every day at 17:00 UTC — moneyMode announcement
+  cron.schedule("0 17 * * *", async () => {
+    console.log("Bot: sending moneyMode announcements...");
+
+    const players = db
+      .prepare(`SELECT telegramId FROM players WHERE telegramId IS NOT NULL`)
+      .all() as { telegramId: string }[];
+
+    for (const player of players) {
+      try {
+        await bot!.sendPhoto(player.telegramId, MONEY_MODE_BANNER_PHOTO, {
+          caption: MONEY_MODE_CAPTION,
+          reply_markup: { inline_keyboard: PLAY_BUTTON },
+        });
+      } catch {
+        console.log(`Bot: moneyMode announcement failed for ${player.telegramId}`);
+      }
+    }
+
+    console.log("Bot: moneyMode announcements done");
+  });
+
   // Every day at 21:00 UTC — daily PTS reminder
   cron.schedule("0 21 * * *", async () => {
     console.log("Bot: sending daily PTS reminders...");
@@ -226,7 +263,7 @@ export function startBot(): void {
     console.log("Bot: daily PTS reminders done");
   });
 
-  console.log("Telegram bot started (morning 10:00 UTC / 13:00 MSK, inactive 18:00, community 17:00, PTS 21:00 UTC)");
+  console.log("Telegram bot started (morning 10:00 UTC / 13:00 MSK, inactive 18:00, community 17:00, moneyMode 17:00, PTS 21:00 UTC)");
 }
 
 export { bot };
