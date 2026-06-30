@@ -14,6 +14,7 @@ import {
 } from "../../storage/playersDataBaseActions";
 
 const IS_MAINNET = process.env.GAME_MODE === "mainnet";
+const MAINTENANCE_MODE = true;
 
 export const gameRouter = Router();
 
@@ -46,6 +47,12 @@ function formatMatch(match: any) {
 
 gameRouter.post("/join", authMiddleware, async (req, res) => {
   try {
+    if (MAINTENANCE_MODE) {
+      return res.status(503).json({
+        error: "Technical work is currently in progress. The transition to MoneyMode is coming very soon.",
+      });
+    }
+
     const { bid, token } = req.body;
     const playerId = req.playerId!; // from JWT — cannot be spoofed via body
 
@@ -98,6 +105,12 @@ gameRouter.get("/match", authMiddleware, async (req, res) => {
 
 gameRouter.post("/move", authMiddleware, async (req, res) => {
   try {
+    if (MAINTENANCE_MODE) {
+      return res.status(503).json({
+        error: "Technical work is currently in progress. The transition to MoneyMode is coming very soon.",
+      });
+    }
+
     const { matchId, boxId, clientMoveId } = req.body;
     const playerId = req.playerId!;
 
