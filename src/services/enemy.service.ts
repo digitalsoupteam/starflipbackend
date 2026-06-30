@@ -19,6 +19,7 @@ const JOIN_AFTER_MS      = 30_000;
 const SCAN_INTERVAL_MS   = 5_000;
 const MOVE_MIN_MS        = 2_000;
 const MOVE_MAX_MS        = 5_000;
+const MAINTENANCE_MODE   = true;
 
 function randomDelay(): Promise<void> {
   const ms = MOVE_MIN_MS + Math.random() * (MOVE_MAX_MS - MOVE_MIN_MS);
@@ -159,6 +160,11 @@ async function watchMatch(botId: string, matchId: string): Promise<void> {
 }
 
 export function startEnemyService(): void {
+  if (MAINTENANCE_MODE) {
+    console.log("[EnemyService] Disabled during technical work");
+    return;
+  }
+
   ensureBots();
 
   // Recover all bots from potential stale state, then start their scan loops
